@@ -11,7 +11,7 @@ name = "compositor"
 path = "src/main.rs"
 
 [dependencies]
-ash = { workspace = true }
+ash = { git = "https://github.com/ash-rs/ash", tag = "v0.37.3", features = ["ext_debug_utils", "khr_surface", "khr_win32_surface", "khr_swapchain"] }
 raw-window-handle = { workspace = true }
 slu-ipc = { workspace = true }
 seelen-core = { workspace = true }
