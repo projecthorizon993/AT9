@@ -189,7 +189,9 @@ impl UIScene {
 
     /// Whether any surface is visible (used for damage tracking).
     pub fn has_visible_content(&self) -> bool {
-        self.surfaces.iter().any(|s| s.visible && !s.elements.is_empty())
+        self.surfaces
+            .iter()
+            .any(|s| s.visible && !s.elements.is_empty())
     }
 }
 

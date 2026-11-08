@@ -40,9 +40,7 @@ impl Ease {
                     0.5 + 2.0 * u * u + 2.0 * u
                 }
             }
-            Ease::Spring { stiffness, damping } => {
-                evaluate_spring(t, stiffness, damping)
-            }
+            Ease::Spring { stiffness, damping } => evaluate_spring(t, stiffness, damping),
         }
     }
 }
@@ -117,37 +115,19 @@ impl Transition {
 
         // For opening: start small at the icon, scale up to the window.
         // For closing: start at the window, scale down to the icon.
-        let (start_scale, end_scale) = if open {
-            (0.2, 1.0)
-        } else {
-            (1.0, 0.2)
-        };
+        let (start_scale, end_scale) = if open { (0.2, 1.0) } else { (1.0, 0.2) };
 
         let (start_opacity, end_opacity) = if open { (0.0, 1.0) } else { (1.0, 0.0) };
 
-        let (start_radius, end_radius) = if open {
-            (8.0, 4.0)
-        } else {
-            (4.0, 8.0)
-        };
+        let (start_radius, end_radius) = if open { (8.0, 4.0) } else { (4.0, 8.0) };
 
         Self {
             app_id,
             from_rect,
             to_rect,
-            opacity: AnimProp::new(
-                start_opacity,
-                end_opacity,
-                duration,
-                Ease::EaseOutQuad,
-            ),
+            opacity: AnimProp::new(start_opacity, end_opacity, duration, Ease::EaseOutQuad),
             scale: AnimProp::new(start_scale, end_scale, duration, Ease::EaseOutQuad),
-            corner_radius: AnimProp::new(
-                start_radius,
-                end_radius,
-                duration,
-                Ease::EaseOutQuad,
-            ),
+            corner_radius: AnimProp::new(start_radius, end_radius, duration, Ease::EaseOutQuad),
             finished: false,
             open,
         }
@@ -165,30 +145,10 @@ impl Transition {
     /// Current interpolated rectangle for the transition overlay.
     pub fn current_rect(&self) -> [f32; 4] {
         let t = self.opacity.value(); // all props share the same clock
-        let x = lerp_eased(
-            self.from_rect[0],
-            self.to_rect[0],
-            Ease::EaseOutQuad,
-            t,
-        );
-        let y = lerp_eased(
-            self.from_rect[1],
-            self.to_rect[1],
-            Ease::EaseOutQuad,
-            t,
-        );
-        let w = lerp_eased(
-            self.from_rect[2],
-            self.to_rect[2],
-            Ease::EaseOutQuad,
-            t,
-        );
-        let h = lerp_eased(
-            self.from_rect[3],
-            self.to_rect[3],
-            Ease::EaseOutQuad,
-            t,
-        );
+        let x = lerp_eased(self.from_rect[0], self.to_rect[0], Ease::EaseOutQuad, t);
+        let y = lerp_eased(self.from_rect[1], self.to_rect[1], Ease::EaseOutQuad, t);
+        let w = lerp_eased(self.from_rect[2], self.to_rect[2], Ease::EaseOutQuad, t);
+        let h = lerp_eased(self.from_rect[3], self.to_rect[3], Ease::EaseOutQuad, t);
         [x, y, w, h]
     }
 
@@ -229,7 +189,8 @@ impl TransitionManager {
     ) {
         // Remove any existing transition for the same app (avoid duplicates).
         self.transitions.retain(|t| t.app_id != app_id);
-        self.transitions.push(Transition::new(app_id, from_rect, to_rect, open));
+        self.transitions
+            .push(Transition::new(app_id, from_rect, to_rect, open));
     }
 
     /// Tick all transitions. Returns a list of app IDs whose transitions
@@ -301,7 +262,12 @@ mod tests {
     #[test]
     fn test_transition_tick() {
         let mut mgr = TransitionManager::new();
-        mgr.start_transition("test".to_string(), [0.0, 0.0, 100.0, 100.0], [200.0, 200.0, 300.0, 300.0], true);
+        mgr.start_transition(
+            "test".to_string(),
+            [0.0, 0.0, 100.0, 100.0],
+            [200.0, 200.0, 300.0, 300.0],
+            true,
+        );
         assert_eq!(mgr.active_transitions().len(), 1);
         assert!(!mgr.active_transitions()[0].finished);
     }

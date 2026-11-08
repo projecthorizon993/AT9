@@ -11,13 +11,12 @@ use crate::{
     dwm::{apply_backdrop_blur, enable_immersive_dark_mode},
     ipc::{CompositorState, RendererToShell, ShellToRenderer},
     text::TextRenderer,
-    ui::{Color, RectF, UiElement, UISurface},
+    ui::{Color, RectF, UISurface, UiElement},
     vulkan::VulkanContext,
     window::{create_fullscreen_window, get_compositor_hwnd, request_close, run_message_loop},
 };
 
-static COMPOSITOR_STATE: Mutex<Option<Arc<parking_lot::Mutex<CompositorState>>>> =
-    Mutex::new(None);
+static COMPOSITOR_STATE: Mutex<Option<Arc<parking_lot::Mutex<CompositorState>>>> = Mutex::new(None);
 
 static VULKAN_CTX: Mutex<Option<Arc<parking_lot::Mutex<VulkanContext>>>> = Mutex::new(None);
 
@@ -115,7 +114,13 @@ fn run_compositor() -> anyhow::Result<()> {
                     // Drop guard before async send.
                     drop(state_guard);
                     // Notify backend transition finished.
-                    if let Err(err) = state.lock().unwrap().ipc.notify_transition_finished(app_id_clone).await {
+                    if let Err(err) = state
+                        .lock()
+                        .unwrap()
+                        .ipc
+                        .notify_transition_finished(app_id_clone)
+                        .await
+                    {
                         warn!("Failed to notify transition finished: {:?}", err);
                     }
                     // Re-acquire (the lock was dropped above).
@@ -206,15 +211,20 @@ fn render_frame(
                     transition.app_id, rect[0], rect[1], rect[2], rect[3], opacity, radius
                 ));
                 // Draw transition quad.
-                commands.push(UiElement::rounded_rect(
-                    RectF::new(rect[0], rect[1], rect[2], rect[3]),
-                    Color::rgba(200, 200, 255, (opacity * 255.0) as u8),
-                    radius,
-                )
-                .to_string());
+                commands.push(
+                    UiElement::rounded_rect(
+                        RectF::new(rect[0], rect[1], rect[2], rect[3]),
+                        Color::rgba(200, 200, 255, (opacity * 255.0) as u8),
+                        radius,
+                    )
+                    .to_string(),
+                );
             }
 
-            (commands, s.transitions.is_animating() || s.scene.has_visible_content())
+            (
+                commands,
+                s.transitions.is_animating() || s.scene.has_visible_content(),
+            )
         };
 
         // TODO: Actually record draw commands into the Vulkan command buffer
@@ -244,7 +254,11 @@ mod tests {
             8.0,
         );
         match elem {
-            UiElement::Rect { color, corner_radius, .. } => {
+            UiElement::Rect {
+                color,
+                corner_radius,
+                ..
+            } => {
                 assert_eq!(color.a, 128);
                 assert_eq!(corner_radius, 8.0);
             }

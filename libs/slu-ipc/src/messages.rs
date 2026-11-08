@@ -208,7 +208,9 @@ pub enum ShellToRenderer {
         open: bool,
     },
     /// End an app transition.
-    AppTransitionEnd { app_id: String },
+    AppTransitionEnd {
+        app_id: String,
+    },
     /// Force a redraw (damage).
     Invalidate,
     Quit,

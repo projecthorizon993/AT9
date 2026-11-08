@@ -1,14 +1,14 @@
 use log::{debug, error, info, warn};
 use slu_ipc::{
-    common::{read_from_ipc_stream, write_to_ipc_stream, END_OF_TRANSMISSION_BLOCK},
+    common::{END_OF_TRANSMISSION_BLOCK, read_from_ipc_stream, write_to_ipc_stream},
     messages::IpcResponse,
 };
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
 
 use windows::Win32::Foundation::HANDLE;
 use windows::Win32::System::Pipes::{
-    CreateNamedPipeW, ConnectNamedPipe, DisconnectNamedPipe, GetNamedPipeHandleState,
-    PIPE_ACCESS_DUPLEX, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_MESSAGE, PIPE_READMODE_MESSAGE,
+    ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, GetNamedPipeHandleState,
+    PIPE_ACCESS_DUPLEX, PIPE_READMODE_MESSAGE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_MESSAGE,
     PIPE_WAIT,
 };
 use windows::core::PCWSTR;
@@ -36,7 +36,9 @@ pub enum ShellToRenderer {
         open: bool,
     },
     /// End an app transition.
-    AppTransitionEnd { app_id: String },
+    AppTransitionEnd {
+        app_id: String,
+    },
     /// Force a redraw (damage).
     Invalidate,
     Quit,
@@ -91,16 +93,17 @@ impl CompositorIpc {
     ///
     /// This runs in a tokio task. For each connection it reads a message,
     /// dispatches it via the callback, and sends a response.
-    pub async fn start_server<F, Fut>(
-        &self,
-        mut callback: F,
-    ) -> anyhow::Result<()>
+    pub async fn start_server<F, Fut>(&self, mut callback: F) -> anyhow::Result<()>
     where
         F: FnMut(ShellToRenderer) -> Fut + Send + Sync + 'static,
         Fut: std::future::Future<Output = anyhow::Result<Option<RendererToShell>>> + Send + Sync,
     {
         let pipe_name = windows::core::PCWSTR::from_raw(
-            self.pipe_path.encode_utf16().chain(Some(0)).collect::<Vec<u16>>().as_ptr(),
+            self.pipe_path
+                .encode_utf16()
+                .chain(Some(0))
+                .collect::<Vec<u16>>()
+                .as_ptr(),
         );
 
         unsafe {
@@ -108,10 +111,10 @@ impl CompositorIpc {
                 pipe_name,
                 PIPE_ACCESS_DUPLEX,
                 PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
-                1, // max instances
+                1,    // max instances
                 4096, // out buffer
                 4096, // in buffer
-                0, // default timeout
+                0,    // default timeout
                 None,
             )?;
 
@@ -162,13 +165,18 @@ impl CompositorIpc {
     async fn send_raw(&self, data: &[u8]) -> anyhow::Result<IpcResponse> {
         // Blocking connect + send via Win32 named pipe (simple, no tokio async pipe needed).
         let pipe_name = windows::core::PCWSTR::from_raw(
-            self.pipe_path.encode_utf16().chain(Some(0)).collect::<Vec<u16>>().as_ptr(),
+            self.pipe_path
+                .encode_utf16()
+                .chain(Some(0))
+                .collect::<Vec<u16>>()
+                .as_ptr(),
         );
 
         unsafe {
             let pipe = windows::Win32::System::Pipes::CreateFileW(
                 pipe_name,
-                windows::Win32::Foundation::GENERIC_READ | windows::Win32::Foundation::GENERIC_WRITE,
+                windows::Win32::Foundation::GENERIC_READ
+                    | windows::Win32::Foundation::GENERIC_WRITE,
                 0,
                 None,
                 windows::Win32::Foundation::OPEN_EXISTING,
@@ -182,12 +190,7 @@ impl CompositorIpc {
 
             // Write message + EOT block.
             let mut written = 0u32;
-            windows::Win32::System::IO::WriteFile(
-                pipe,
-                data,
-                Some(&mut written),
-                None,
-            )?;
+            windows::Win32::System::IO::WriteFile(pipe, data, Some(&mut written), None)?;
             windows::Win32::System::IO::WriteFile(
                 pipe,
                 &[END_OF_TRANSMISSION_BLOCK],
@@ -198,12 +201,7 @@ impl CompositorIpc {
             // Read response.
             let mut buf = [0u8; 4096];
             let mut read = 0u32;
-            windows::Win32::System::IO::ReadFile(
-                pipe,
-                &mut buf,
-                Some(&mut read),
-                None,
-            )?;
+            windows::Win32::System::IO::ReadFile(pipe, &mut buf, Some(&mut read), None)?;
 
             let _ = windows::Win32::Foundation::CloseHandle(pipe);
 
@@ -224,7 +222,8 @@ impl CompositorIpc {
     pub async fn notify_transition_finished(&self, app_id: &str) -> anyhow::Result<()> {
         self.send_to_backend(&RendererToShell::TransitionFinished {
             app_id: app_id.to_string(),
-        }).await
+        })
+        .await
     }
 
     /// Notify the backend of a shell input event.
@@ -232,7 +231,8 @@ impl CompositorIpc {
         self.send_to_backend(&RendererToShell::ShellInput {
             target: target.to_string(),
             kind: kind.to_string(),
-        }).await
+        })
+        .await
     }
 }
 
@@ -276,7 +276,8 @@ impl CompositorState {
         open: bool,
     ) {
         info!("Starting transition for app {} (open={})", app_id, open);
-        self.transitions.start_transition(app_id, from_rect, to_rect, open);
+        self.transitions
+            .start_transition(app_id, from_rect, to_rect, open);
         self.scene.has_visible_content();
     }
 

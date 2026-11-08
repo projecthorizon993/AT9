@@ -50,11 +50,7 @@ pub fn create_fullscreen_window() -> anyhow::Result<HWND> {
         let _ = GetClientRect(HWND::default(), &rect);
 
         let hwnd = CreateWindowExW(
-            WS_EX_LAYERED
-                | WS_EX_TRANSPARENT
-                | WS_EX_TOPMOST
-                | WS_EX_NOACTIVATE
-                | WS_EX_TOOLWINDOW,
+            WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
             CLASS_NAME,
             WINDOW_NAME,
             WS_POPUP | WS_VISIBLE,
@@ -98,12 +94,7 @@ pub fn get_compositor_hwnd() -> Option<HWND> {
 ///
 /// We keep this minimal: the compositor is a transparent overlay. Most
 /// messages are passed to `DefWindowProcW`. `WM_DESTROY` posts a quit message.
-extern "system" fn window_proc(
-    hwnd: HWND,
-    msg: u32,
-    wparam: WPARAM,
-    lparam: LPARAM,
-) -> LRESULT {
+extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match msg {
         windows::Win32::UI::WindowsAndMessaging::WM_DESTROY => {
             unsafe { PostQuitMessage(0) };

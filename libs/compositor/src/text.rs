@@ -10,19 +10,19 @@ use windows::Win32::Graphics::DirectWrite::{
     IDWriteTextRenderer,
 };
 use windows::Win32::Graphics::Gdi::{
-    CreateCompatibleDC, CreateDIBSection, DeleteDC, DeleteObject, GetDeviceCaps, SelectObject,
-    BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HDC, HBITMAP,
+    BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, CreateDIBSection, DIB_RGB_COLORS,
+    DeleteDC, DeleteObject, GetDeviceCaps, HBITMAP, HDC, SelectObject,
 };
 use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::WindowsAndMessaging::GetDC;
-use windows::core::{implement, w, ComInterface, Interface, PCWSTR};
+use windows::core::{ComInterface, Interface, PCWSTR, implement, w};
 
 /// A single glyph in the texture atlas.
 #[derive(Debug, Clone)]
 pub struct Glyph {
     pub char: char,
-    pub uv: [f32; 4], // u0, v0, u1, v1 in texture coordinates
-    pub size: [f32; 2], // width, height in pixels
+    pub uv: [f32; 4],      // u0, v0, u1, v1 in texture coordinates
+    pub size: [f32; 2],    // width, height in pixels
     pub bearing: [f32; 2], // x, y offset from baseline
     pub advance: f32,
 }
@@ -62,9 +62,10 @@ pub struct TextRenderer {
 impl TextRenderer {
     pub fn new() -> anyhow::Result<Self> {
         unsafe {
-            let factory: IDWriteFactory = windows::Win32::Graphics::DirectWrite::DWriteCreateFactory(
-                DWRITE_FACTORY_TYPE_SHARED,
-            )?;
+            let factory: IDWriteFactory =
+                windows::Win32::Graphics::DirectWrite::DWriteCreateFactory(
+                    DWRITE_FACTORY_TYPE_SHARED,
+                )?;
 
             // Create a compatible DC and DIB section for off-screen glyph measurement.
             let hdc = GetDC(HWND::default())?;
@@ -124,13 +125,7 @@ impl TextRenderer {
             // Measure the glyph.
             let mut metrics = windows::Win32::Graphics::DirectWrite::DWRITE_TEXT_METRICS::default();
             let layout = factory
-                .CreateTextLayout(
-                    pwstr,
-                    1,
-                    &text_format,
-                    1000.0,
-                    1000.0,
-                )
+                .CreateTextLayout(pwstr, 1, &text_format, 1000.0, 1000.0)
                 .ok()?;
             let _ = layout.GetMetrics(&mut metrics);
 
@@ -159,7 +154,14 @@ impl TextRenderer {
             };
 
             let mut bits: *mut u8 = std::ptr::null_mut();
-            let hbitmap = CreateDIBSection(dc, &mut bmi, DIB_RGB_COLORS, &mut bits as *mut _ as *mut _, None, 0)?;
+            let hbitmap = CreateDIBSection(
+                dc,
+                &mut bmi,
+                DIB_RGB_COLORS,
+                &mut bits as *mut _ as *mut _,
+                None,
+                0,
+            )?;
             if hbitmap.is_invalid() {
                 return None;
             }

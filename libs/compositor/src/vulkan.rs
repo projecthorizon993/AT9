@@ -44,7 +44,8 @@ impl VulkanContext {
         let entry = ash::Entry::linked();
 
         // Instance with validation layers in debug.
-        let app_name = windows::core::PCWSTR::from_raw("Seelen Compositor\0".encode_utf16().as_ptr());
+        let app_name =
+            windows::core::PCWSTR::from_raw("Seelen Compositor\0".encode_utf16().as_ptr());
         let _ = app_name;
 
         let app_name_c = std::ffi::CString::new("Seelen Compositor")?;
@@ -101,10 +102,8 @@ impl VulkanContext {
             .hinstance(unsafe { windows::Win32::System::LibraryLoader::GetModuleHandleW(None)? })
             .hwnd(hwnd);
         let surface_loader_khr = ash::extensions::khr::Surface::new(&entry, &instance);
-        let surface = surface_loader_khr.create_win32_surface_khr(
-            &win32_surface_create_info,
-            None,
-        )?;
+        let surface =
+            surface_loader_khr.create_win32_surface_khr(&win32_surface_create_info, None)?;
 
         // Physical device selection: prefer integrated GPU for power efficiency.
         let physical_devices = instance.enumerate_physical_devices()?;
@@ -127,12 +126,17 @@ impl VulkanContext {
         info!(
             "Using Vulkan device: {}",
             String::from_utf8_lossy(
-                &props.device_name[..props.device_name.iter().position(|&b| b == 0).unwrap_or(props.device_name.len())]
+                &props.device_name[..props
+                    .device_name
+                    .iter()
+                    .position(|&b| b == 0)
+                    .unwrap_or(props.device_name.len())]
             )
         );
 
         // Queue family with present support.
-        let queue_family_props = instance.get_physical_device_queue_family_properties(physical_device);
+        let queue_family_props =
+            instance.get_physical_device_queue_family_properties(physical_device);
         let mut queue_family_index = None;
         for (i, props) in queue_family_props.iter().enumerate() {
             let supports_graphics = props.queue_flags.contains(ash::vk::QueueFlags::GRAPHICS);
@@ -142,15 +146,15 @@ impl VulkanContext {
                     i as u32,
                     surface,
                 )
-            }.unwrap_or(false);
+            }
+            .unwrap_or(false);
             if supports_graphics && supports_present {
                 queue_family_index = Some(i as u32);
                 break;
             }
         }
-        let queue_family_index = queue_family_index.ok_or_else(|| {
-            anyhow::anyhow!("No queue family supports graphics + present")
-        })?;
+        let queue_family_index = queue_family_index
+            .ok_or_else(|| anyhow::anyhow!("No queue family supports graphics + present"))?;
 
         // Logical device.
         let queue_create_infos = [ash::vk::DeviceQueueCreateInfo::builder()
@@ -170,14 +174,18 @@ impl VulkanContext {
         // Swapchain.
         let swapchain_loader = ash::extensions::khr::Swapchain::new(&instance, &device);
 
-        let caps = surface_loader_khr.get_physical_device_surface_capabilities_khr(physical_device, surface)?;
-        let formats = surface_loader_khr.get_physical_device_surface_formats_khr(physical_device, surface)?;
-        let present_modes = surface_loader_khr.get_physical_device_surface_present_modes_khr(physical_device, surface)?;
+        let caps = surface_loader_khr
+            .get_physical_device_surface_capabilities_khr(physical_device, surface)?;
+        let formats =
+            surface_loader_khr.get_physical_device_surface_formats_khr(physical_device, surface)?;
+        let present_modes = surface_loader_khr
+            .get_physical_device_surface_present_modes_khr(physical_device, surface)?;
 
         // Choose format: BGRA8 unorm with SRGB or UNORM.
-        let surface_format = formats.iter().find(|f| {
-            f.format == ash::vk::Format::B8G8R8A8_UNORM
-        }).unwrap_or(&formats[0]);
+        let surface_format = formats
+            .iter()
+            .find(|f| f.format == ash::vk::Format::B8G8R8A8_UNORM)
+            .unwrap_or(&formats[0]);
 
         let swapchain_format = surface_format.format;
         let swapchain_extent = if caps.current_extent.width == u32::MAX {
@@ -196,7 +204,10 @@ impl VulkanContext {
         // Target 2 images for low VRAM.
         image_count = image_count.min(3).max(2);
 
-        let pre_transform = if caps.supported_transforms.contains(ash::vk::SurfaceTransformFlagsKHR::IDENTITY) {
+        let pre_transform = if caps
+            .supported_transforms
+            .contains(ash::vk::SurfaceTransformFlagsKHR::IDENTITY)
+        {
             ash::vk::SurfaceTransformFlagsKHR::IDENTITY
         } else {
             caps.current_transform
@@ -204,7 +215,10 @@ impl VulkanContext {
 
         let composite_alpha = ash::vk::CompositeAlphaFlagsKHR::OPAQUE;
 
-        let present_mode = present_modes.iter().cloned().find(|&m| m == ash::vk::PresentModeKHR::FIFO)
+        let present_mode = present_modes
+            .iter()
+            .cloned()
+            .find(|&m| m == ash::vk::PresentModeKHR::FIFO)
             .unwrap_or(ash::vk::PresentModeKHR::FIFO);
 
         let swapchain_create_info = ash::vk::SwapchainCreateInfoKHR::builder()
@@ -214,7 +228,9 @@ impl VulkanContext {
             .image_color_space(surface_format.color_space)
             .image_extent(swapchain_extent)
             .image_array_layers(1)
-            .image_usage(ash::vk::ImageUsageFlags::COLOR_ATTACHMENT | ash::vk::ImageUsageFlags::TRANSFER_DST)
+            .image_usage(
+                ash::vk::ImageUsageFlags::COLOR_ATTACHMENT | ash::vk::ImageUsageFlags::TRANSFER_DST,
+            )
             .image_sharing_mode(ash::vk::SharingMode::EXCLUSIVE)
             .pre_transform(pre_transform)
             .composite_alpha(composite_alpha)
@@ -226,26 +242,29 @@ impl VulkanContext {
         let swapchain_images = swapchain_loader.get_swapchain_images_khr(swapchain)?;
 
         // Image views.
-        let swapchain_image_views: Vec<ash::vk::ImageView> = swapchain_images.iter().map(|&img| {
-            let create_info = ash::vk::ImageViewCreateInfo::builder()
-                .image(img)
-                .view_type(ash::vk::ImageViewType::TYPE_2D)
-                .format(swapchain_format)
-                .components(ash::vk::ComponentMapping {
-                    r: ash::vk::ComponentSwizzle::IDENTITY,
-                    g: ash::vk::ComponentSwizzle::IDENTITY,
-                    b: ash::vk::ComponentSwizzle::IDENTITY,
-                    a: ash::vk::ComponentSwizzle::IDENTITY,
-                })
-                .subresource_range(ash::vk::ImageSubresourceRange {
-                    aspect_mask: ash::vk::ImageAspectFlags::COLOR,
-                    base_mip_level: 0,
-                    level_count: 1,
-                    base_array_layer: 0,
-                    layer_count: 1,
-                });
-            unsafe { device.create_image_view(&create_info, None) }.unwrap()
-        }).collect();
+        let swapchain_image_views: Vec<ash::vk::ImageView> = swapchain_images
+            .iter()
+            .map(|&img| {
+                let create_info = ash::vk::ImageViewCreateInfo::builder()
+                    .image(img)
+                    .view_type(ash::vk::ImageViewType::TYPE_2D)
+                    .format(swapchain_format)
+                    .components(ash::vk::ComponentMapping {
+                        r: ash::vk::ComponentSwizzle::IDENTITY,
+                        g: ash::vk::ComponentSwizzle::IDENTITY,
+                        b: ash::vk::ComponentSwizzle::IDENTITY,
+                        a: ash::vk::ComponentSwizzle::IDENTITY,
+                    })
+                    .subresource_range(ash::vk::ImageSubresourceRange {
+                        aspect_mask: ash::vk::ImageAspectFlags::COLOR,
+                        base_mip_level: 0,
+                        level_count: 1,
+                        base_array_layer: 0,
+                        layer_count: 1,
+                    });
+                unsafe { device.create_image_view(&create_info, None) }.unwrap()
+            })
+            .collect();
 
         // Render pass.
         let attachment_descs = [ash::vk::AttachmentDescription::builder()
@@ -276,16 +295,19 @@ impl VulkanContext {
         let render_pass = device.create_render_pass(&render_pass_create_info, None)?;
 
         // Framebuffers.
-        let framebuffers: Vec<ash::vk::Framebuffer> = swapchain_image_views.iter().map(|&iv| {
-            let attachments = [iv];
-            let create_info = ash::vk::FramebufferCreateInfo::builder()
-                .render_pass(render_pass)
-                .attachments(&attachments)
-                .width(swapchain_extent.width)
-                .height(swapchain_extent.height)
-                .layers(1);
-            unsafe { device.create_framebuffer(&create_info, None) }.unwrap()
-        }).collect();
+        let framebuffers: Vec<ash::vk::Framebuffer> = swapchain_image_views
+            .iter()
+            .map(|&iv| {
+                let attachments = [iv];
+                let create_info = ash::vk::FramebufferCreateInfo::builder()
+                    .render_pass(render_pass)
+                    .attachments(&attachments)
+                    .width(swapchain_extent.width)
+                    .height(swapchain_extent.height)
+                    .layers(1);
+                unsafe { device.create_framebuffer(&create_info, None) }.unwrap()
+            })
+            .collect();
 
         // Command pool.
         let command_pool_create_info = ash::vk::CommandPoolCreateInfo::builder()
@@ -304,17 +326,15 @@ impl VulkanContext {
 
         // Sync primitives.
         let semaphore_create_info = ash::vk::SemaphoreCreateInfo::builder();
-        let fence_create_info = ash::vk::FenceCreateInfo::builder()
-            .flags(ash::vk::FenceCreateFlags::SIGNALED);
+        let fence_create_info =
+            ash::vk::FenceCreateInfo::builder().flags(ash::vk::FenceCreateFlags::SIGNALED);
 
         let image_available_semaphore = device.create_semaphore(&semaphore_create_info, None)?;
         let render_finished_semaphore = device.create_semaphore(&semaphore_create_info, None)?;
         let in_flight_fence = device.create_fence(&fence_create_info, None)?;
 
-        let pipeline_cache = device.create_pipeline_cache(
-            &ash::vk::PipelineCacheCreateInfo::builder().build(),
-            None,
-        )?;
+        let pipeline_cache = device
+            .create_pipeline_cache(&ash::vk::PipelineCacheCreateInfo::builder().build(), None)?;
 
         Ok(Self {
             entry,
@@ -366,11 +386,8 @@ impl VulkanContext {
 
     /// Begin a frame: acquire next swapchain image.
     pub unsafe fn begin_frame(&mut self) -> anyhow::Result<ash::vk::Image> {
-        self.device.wait_for_fences(
-            &[self.in_flight_fence],
-            true,
-            u64::MAX,
-        )?;
+        self.device
+            .wait_for_fences(&[self.in_flight_fence], true, u64::MAX)?;
 
         let (image_index, _suboptimal) = self.swapchain_loader.acquire_next_image_khr(
             self.swapchain,
@@ -395,20 +412,17 @@ impl VulkanContext {
         let command_buffer = self.command_buffers[image_index as usize];
 
         // Reset command buffer.
-        self.device.reset_command_buffer(
-            command_buffer,
-            ash::vk::CommandBufferResetFlags::empty(),
-        )?;
+        self.device
+            .reset_command_buffer(command_buffer, ash::vk::CommandBufferResetFlags::empty())?;
 
         let begin_info = ash::vk::CommandBufferBeginInfo::builder()
             .flags(ash::vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
-        self.device.begin_command_buffer(command_buffer, &begin_info)?;
+        self.device
+            .begin_command_buffer(command_buffer, &begin_info)?;
 
         // Begin render pass.
-        let clear_values = [ash::vk::ClearValue {
-            color: clear_color,
-        }];
+        let clear_values = [ash::vk::ClearValue { color: clear_color }];
 
         let render_pass_begin_info = ash::vk::RenderPassBeginInfo::builder()
             .render_pass(self.render_pass)
@@ -444,11 +458,8 @@ impl VulkanContext {
             .signal_semaphores(&signal_semaphores)
             .build()];
 
-        self.device.queue_submit(
-            self.queue,
-            &submit_info,
-            self.in_flight_fence,
-        )?;
+        self.device
+            .queue_submit(self.queue, &submit_info, self.in_flight_fence)?;
 
         // Present.
         let swapchains = [self.swapchain];
@@ -476,7 +487,8 @@ impl VulkanContext {
         for iv in self.swapchain_image_views.iter() {
             self.device.destroy_image_view(*iv, None);
         }
-        self.swapchain_loader.destroy_swapchain_khr(self.swapchain, None);
+        self.swapchain_loader
+            .destroy_swapchain_khr(self.swapchain, None);
 
         self.width = width;
         self.height = height;
@@ -487,17 +499,16 @@ impl VulkanContext {
 
         // Recreate swapchain (same params as initial creation).
         // Simplified: in a full implementation we'd re-query surface caps.
-        let caps = self.surface_loader_khr.get_physical_device_surface_capabilities_khr(
-            self.physical_device,
-            self.surface,
-        )?;
-        let formats = self.surface_loader_khr.get_physical_device_surface_formats_khr(
-            self.physical_device,
-            self.surface,
-        )?;
-        let surface_format = formats.iter().find(|f| {
-            f.format == ash::vk::Format::B8G8R8A8_UNORM
-        }).unwrap_or(&formats[0]);
+        let caps = self
+            .surface_loader_khr
+            .get_physical_device_surface_capabilities_khr(self.physical_device, self.surface)?;
+        let formats = self
+            .surface_loader_khr
+            .get_physical_device_surface_formats_khr(self.physical_device, self.surface)?;
+        let surface_format = formats
+            .iter()
+            .find(|f| f.format == ash::vk::Format::B8G8R8A8_UNORM)
+            .unwrap_or(&formats[0]);
 
         let swapchain_create_info = ash::vk::SwapchainCreateInfoKHR::builder()
             .surface(self.surface)
@@ -506,7 +517,9 @@ impl VulkanContext {
             .image_color_space(surface_format.color_space)
             .image_extent(self.swapchain_extent)
             .image_array_layers(1)
-            .image_usage(ash::vk::ImageUsageFlags::COLOR_ATTACHMENT | ash::vk::ImageUsageFlags::TRANSFER_DST)
+            .image_usage(
+                ash::vk::ImageUsageFlags::COLOR_ATTACHMENT | ash::vk::ImageUsageFlags::TRANSFER_DST,
+            )
             .image_sharing_mode(ash::vk::SharingMode::EXCLUSIVE)
             .pre_transform(caps.current_transform)
             .composite_alpha(ash::vk::CompositeAlphaFlagsKHR::OPAQUE)
@@ -514,39 +527,51 @@ impl VulkanContext {
             .clipped(true)
             .old_swapchain(ash::vk::SwapchainKHR::null());
 
-        self.swapchain = self.swapchain_loader.create_swapchain_khr(&swapchain_create_info, None)?;
-        self.swapchain_images = self.swapchain_loader.get_swapchain_images_khr(self.swapchain)?;
-        self.swapchain_image_views = self.swapchain_images.iter().map(|&img| {
-            let create_info = ash::vk::ImageViewCreateInfo::builder()
-                .image(img)
-                .view_type(ash::vk::ImageViewType::TYPE_2D)
-                .format(surface_format.format)
-                .components(ash::vk::ComponentMapping {
-                    r: ash::vk::ComponentSwizzle::IDENTITY,
-                    g: ash::vk::ComponentSwizzle::IDENTITY,
-                    b: ash::vk::ComponentSwizzle::IDENTITY,
-                    a: ash::vk::ComponentSwizzle::IDENTITY,
-                })
-                .subresource_range(ash::vk::ImageSubresourceRange {
-                    aspect_mask: ash::vk::ImageAspectFlags::COLOR,
-                    base_mip_level: 0,
-                    level_count: 1,
-                    base_array_layer: 0,
-                    layer_count: 1,
-                });
-            unsafe { self.device.create_image_view(&create_info, None) }.unwrap()
-        }).collect();
+        self.swapchain = self
+            .swapchain_loader
+            .create_swapchain_khr(&swapchain_create_info, None)?;
+        self.swapchain_images = self
+            .swapchain_loader
+            .get_swapchain_images_khr(self.swapchain)?;
+        self.swapchain_image_views = self
+            .swapchain_images
+            .iter()
+            .map(|&img| {
+                let create_info = ash::vk::ImageViewCreateInfo::builder()
+                    .image(img)
+                    .view_type(ash::vk::ImageViewType::TYPE_2D)
+                    .format(surface_format.format)
+                    .components(ash::vk::ComponentMapping {
+                        r: ash::vk::ComponentSwizzle::IDENTITY,
+                        g: ash::vk::ComponentSwizzle::IDENTITY,
+                        b: ash::vk::ComponentSwizzle::IDENTITY,
+                        a: ash::vk::ComponentSwizzle::IDENTITY,
+                    })
+                    .subresource_range(ash::vk::ImageSubresourceRange {
+                        aspect_mask: ash::vk::ImageAspectFlags::COLOR,
+                        base_mip_level: 0,
+                        level_count: 1,
+                        base_array_layer: 0,
+                        layer_count: 1,
+                    });
+                unsafe { self.device.create_image_view(&create_info, None) }.unwrap()
+            })
+            .collect();
 
-        self.framebuffers = self.swapchain_image_views.iter().map(|&iv| {
-            let attachments = [iv];
-            let create_info = ash::vk::FramebufferCreateInfo::builder()
-                .render_pass(self.render_pass)
-                .attachments(&attachments)
-                .width(self.swapchain_extent.width)
-                .height(self.swapchain_extent.height)
-                .layers(1);
-            unsafe { self.device.create_framebuffer(&create_info, None) }.unwrap()
-        }).collect();
+        self.framebuffers = self
+            .swapchain_image_views
+            .iter()
+            .map(|&iv| {
+                let attachments = [iv];
+                let create_info = ash::vk::FramebufferCreateInfo::builder()
+                    .render_pass(self.render_pass)
+                    .attachments(&attachments)
+                    .width(self.swapchain_extent.width)
+                    .height(self.swapchain_extent.height)
+                    .layers(1);
+                unsafe { self.device.create_framebuffer(&create_info, None) }.unwrap()
+            })
+            .collect();
 
         self.command_buffers = self.device.allocate_command_buffers(
             &ash::vk::CommandBufferAllocateInfo::builder()
@@ -570,18 +595,24 @@ impl Drop for VulkanContext {
             for iv in self.swapchain_image_views.iter() {
                 self.device.destroy_image_view(*iv, None);
             }
-            self.swapchain_loader.destroy_swapchain_khr(self.swapchain, None);
+            self.swapchain_loader
+                .destroy_swapchain_khr(self.swapchain, None);
             self.device.destroy_command_pool(self.command_pool, None);
             self.device.destroy_fence(self.in_flight_fence, None);
-            self.device.destroy_semaphore(self.render_finished_semaphore, None);
-            self.device.destroy_semaphore(self.image_available_semaphore, None);
-            self.device.destroy_pipeline_cache(self.pipeline_cache, None);
+            self.device
+                .destroy_semaphore(self.render_finished_semaphore, None);
+            self.device
+                .destroy_semaphore(self.image_available_semaphore, None);
+            self.device
+                .destroy_pipeline_cache(self.pipeline_cache, None);
             self.device.destroy_render_pass(self.render_pass, None);
             self.device.destroy_device(None);
             if let Some(dm) = self.debug_messenger {
-                self.surface_loader.destroy_debug_utils_messenger_ext(dm, None);
+                self.surface_loader
+                    .destroy_debug_utils_messenger_ext(dm, None);
             }
-            self.surface_loader_khr.destroy_surface_khr(self.surface, None);
+            self.surface_loader_khr
+                .destroy_surface_khr(self.surface, None);
             self.instance.destroy_instance(None);
         }
     }
@@ -605,7 +636,10 @@ extern "system" fn vulkan_debug_callback(
             error!("[Vulkan Validation ERROR] {:?}: {}", message_type, message)
         }
         ash::vk::DebugUtilsMessageSeverityFlagsEXT::WARNING => {
-            warn!("[Vulkan Validation WARNING] {:?}: {}", message_type, message)
+            warn!(
+                "[Vulkan Validation WARNING] {:?}: {}",
+                message_type, message
+            )
         }
         _ => {
             debug!("[Vulkan Validation] {:?}: {}", message_type, message)
