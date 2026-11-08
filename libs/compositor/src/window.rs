@@ -1,6 +1,5 @@
 use log::{info, warn};
-use parking_lot::Mutex;
-use std::ptr;
+use std::sync::OnceLock;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, MSG, WPARAM};
 use windows::Win32::Graphics::Gdi::{LWA_ALPHA, SetLayeredWindowAttributes};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -17,8 +16,8 @@ const CLASS_NAME: PCWSTR = windows::core::w!("SeelenCompositor");
 const WINDOW_NAME: PCWSTR = windows::core::w!("Seelen Compositor");
 
 /// Handle to the compositor window, shared across modules.
-/// We use a raw pointer with Mutex to avoid Send/Sync issues with HWND.
-static COMPOSITOR_HWND: Mutex<*mut std::ffi::c_void> = Mutex::new(ptr::null_mut());
+/// Use OnceLock<HWND> which is Send + Sync.
+static COMPOSITOR_HWND: OnceLock<HWND> = OnceLock::new();
 
 /// Create a fullscreen, transparent, topmost compositor window.
 ///
@@ -71,8 +70,7 @@ pub fn create_fullscreen_window() -> anyhow::Result<HWND> {
         // comes from the Vulkan swapchain alpha channel.
         SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA).ok();
 
-        // Store the HWND as a raw pointer to avoid Send/Sync issues
-        *COMPOSITOR_HWND.lock() = hwnd.0;
+        let _ = COMPOSITOR_HWND.set(hwnd);
 
         info!("Compositor window created: {:?}", hwnd);
         Ok(hwnd)
@@ -81,8 +79,7 @@ pub fn create_fullscreen_window() -> anyhow::Result<HWND> {
 
 /// Return the compositor window handle if it has been created.
 pub fn get_compositor_hwnd() -> Option<HWND> {
-    let ptr = *COMPOSITOR_HWND.lock();
-    if ptr.is_null() { None } else { Some(HWND(ptr)) }
+    COMPOSITOR_HWND.get().copied()
 }
 
 /// Window procedure for the compositor window.

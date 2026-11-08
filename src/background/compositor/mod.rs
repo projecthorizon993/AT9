@@ -3,7 +3,7 @@ use std::process::Stdio;
 
 use slu_ipc::{
     IPC,
-    messages::{RendererToShell, ShellToRenderer},
+    messages::{RendererToShell, ShellToRenderer, SvcAction},
 };
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;

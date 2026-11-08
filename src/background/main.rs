@@ -203,7 +203,7 @@ fn app_callback(_: &tauri::AppHandle<tauri::Wry>, event: tauri::RunEvent) {
                 if code == 0 {
                     ServicePipe::request(SvcAction::Stop).log_error();
                     // Shutdown compositor
-                    CompositorPipe::shutdown().log_error();
+                    CompositorPipe::shutdown().await.log_error();
                 }
             }
             // prevent close background on webview windows closing
