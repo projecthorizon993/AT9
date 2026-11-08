@@ -2,6 +2,7 @@ use log::{info, warn};
 use parking_lot::Mutex;
 use std::ptr;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::Graphics::Gdi::{LWA_ALPHA, SetLayeredWindowAttributes};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -68,13 +69,7 @@ pub fn create_fullscreen_window() -> anyhow::Result<HWND> {
 
         // Mark the window as layered with full opacity; actual per-pixel alpha
         // comes from the Vulkan swapchain alpha channel.
-        windows::Win32::Graphics::Gdi::SetLayeredWindowAttributes(
-            hwnd,
-            0,
-            255,
-            windows::Win32::Graphics::Gdi::LWA_ALPHA,
-        )
-        .ok();
+        SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA).ok();
 
         // Store the HWND as a raw pointer to avoid Send/Sync issues
         *COMPOSITOR_HWND.lock() = hwnd.0;

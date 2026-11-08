@@ -147,9 +147,6 @@ impl CompositorIpc {
         F: FnMut(ShellToRenderer) -> Fut + Send + Sync,
         Fut: std::future::Future<Output = anyhow::Result<Option<RendererToShell>>> + Send + Sync,
     {
-        // Note: In a production implementation we'd wrap the HANDLE in an async
-        // stream using Windows named pipe overlapped I/O. For MVP we process
-        // messages via a blocking read on a separate thread.
         let _ = _stream;
         Ok(())
     }
@@ -172,7 +169,7 @@ impl CompositorIpc {
         );
 
         unsafe {
-            let pipe = windows::Win32::System::Pipes::CreateFileW(
+            let pipe = windows::Win32::System::IO::CreateFileW(
                 pipe_name,
                 GENERIC_READ | GENERIC_WRITE,
                 0,
@@ -254,9 +251,6 @@ impl CompositorState {
         _theme: serde_json::Value,
     ) {
         debug!("Applying shell state from backend");
-        // TODO: Convert JSON state into UISurface elements.
-        // This is where the compositor builds its retained UI model from
-        // the backend's source-of-truth state.
         let _ = (taskbar, dock, workspaces);
     }
 

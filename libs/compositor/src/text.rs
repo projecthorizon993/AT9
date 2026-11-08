@@ -1,4 +1,3 @@
-use log::warn;
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use windows::Win32::Foundation::{HWND, RECT};
@@ -7,7 +6,7 @@ use windows::Win32::Graphics::DirectWrite::{
 };
 use windows::Win32::Graphics::Gdi::{
     BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, CreateDIBSection, DIB_RGB_COLORS,
-    DeleteDC, DeleteObject, HBITMAP, HBRUSH, HDC, HGDIOBJ, SelectObject,
+    DeleteDC, DeleteObject, HBITMAP, HBRUSH, HDC, HGDIOBJ, RGB, SelectObject,
 };
 use windows::Win32::UI::WindowsAndMessaging::GetDC;
 use windows::core::PCWSTR;
@@ -149,7 +148,7 @@ impl TextRenderer {
 
             let mut bits: *mut u8 = std::ptr::null_mut();
             let hbitmap = CreateDIBSection(
-                dc,
+                Some(dc),
                 &mut bmi,
                 DIB_RGB_COLORS,
                 &mut bits as *mut _ as *mut _,
@@ -180,11 +179,9 @@ impl TextRenderer {
                 right: width,
                 bottom: height,
             };
-            let brush = windows::Win32::Graphics::Gdi::CreateSolidBrush(
-                windows::Win32::Graphics::Gdi::RGB(255, 255, 255),
-            );
-            let _ = windows::Win32::Graphics::Gdi::FillRect(dc, &rect, brush);
-            let _ = windows::Win32::Graphics::Gdi::DeleteObject(brush.into());
+            let brush = CreateSolidBrush(RGB(255, 255, 255));
+            let _ = FillRect(dc, &rect, brush);
+            let _ = DeleteObject(brush.into());
 
             let _ = SelectObject(dc, old);
             let _ = DeleteObject(hbitmap.into());

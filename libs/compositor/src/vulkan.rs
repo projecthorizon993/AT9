@@ -5,8 +5,6 @@ use parking_lot::Mutex;
 pub struct VulkanContext {
     pub entry: ash::Entry,
     pub instance: ash::Instance,
-    pub debug_utils: ash::ext::debug_utils::DebugUtils,
-    pub debug_messenger: Option<ash::vk::DebugUtilsMessengerEXT>,
     pub surface: ash::vk::SurfaceKHR,
     pub surface_loader: ash::khr::surface::Surface,
     pub swapchain_loader: ash::khr::swapchain::Swapchain,
@@ -384,8 +382,6 @@ impl VulkanContext {
         Ok(Self {
             entry,
             instance,
-            debug_utils: ash::ext::debug_utils::DebugUtils::new(&entry, &instance),
-            debug_messenger,
             surface,
             surface_loader: ash::khr::surface::Surface::new(&entry, &instance),
             swapchain_loader,
@@ -446,9 +442,6 @@ impl VulkanContext {
     }
 
     /// Record and submit a draw command buffer for the given image index.
-    ///
-    /// In MVP we clear to a transparent color. Subclasses/callers fill in
-    /// actual UI drawing via `record_ui_commands`.
     pub unsafe fn draw_frame(
         &mut self,
         image_index: u32,
@@ -676,11 +669,6 @@ impl Drop for VulkanContext {
                 .destroy_pipeline_cache(self.pipeline_cache, None);
             self.device.destroy_render_pass(self.render_pass, None);
             self.device.destroy_device(None);
-            if let Some(dm) = self.debug_messenger {
-                let debug_utils =
-                    ash::ext::debug_utils::DebugUtils::new(&self.entry, &self.instance);
-                debug_utils.destroy_debug_utils_messenger_ext(dm, None);
-            }
             let surface_loader = ash::khr::surface::Surface::new(&self.entry, &self.instance);
             surface_loader.destroy_surface_khr(self.surface, None);
             self.instance.destroy_instance(None);
