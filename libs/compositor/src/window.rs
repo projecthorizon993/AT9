@@ -1,13 +1,14 @@
 use log::{info, warn};
 use parking_lot::Mutex;
-use std::sync::Arc;
+use std::sync::OnceLock;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, PostMessageW, PostQuitMessage,
-    RegisterClassExW, TranslateMessage, WM_CLOSE, WM_DESTROY, WNDCLASSEXW, WS_EX_LAYERED,
-    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP, WS_VISIBLE,
+    RegisterClassExW, TranslateMessage, WM_CLOSE, WM_DESTROY, WNDCLASS_STYLES, WNDCLASSEXW,
+    WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
+    WS_VISIBLE,
 };
 use windows::core::PCWSTR;
 
@@ -15,8 +16,8 @@ const CLASS_NAME: PCWSTR = windows::core::w!("SeelenCompositor");
 const WINDOW_NAME: PCWSTR = windows::core::w!("Seelen Compositor");
 
 /// Handle to the compositor window, shared across modules.
-/// Use Option<HWND> wrapped in Arc<Mutex<>> for thread safety.
-static COMPOSITOR_HWND: Mutex<Option<HWND>> = Mutex::new(None);
+/// Use OnceLock for thread-safe initialization and HWND access.
+static COMPOSITOR_HWND: OnceLock<HWND> = OnceLock::new();
 
 /// Create a fullscreen, transparent, topmost compositor window.
 ///
@@ -27,10 +28,9 @@ pub fn create_fullscreen_window() -> anyhow::Result<HWND> {
     unsafe {
         let hinstance = GetModuleHandleW(None)?;
 
-        let wnd_class = windows::Win32::UI::WindowsAndMessaging::WNDCLASSEXW {
-            cbSize: std::mem::size_of::<windows::Win32::UI::WindowsAndMessaging::WNDCLASSEXW>()
-                as u32,
-            style: 0,
+        let wnd_class = WNDCLASSEXW {
+            cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
+            style: WNDCLASS_STYLES(0),
             lpfnWndProc: Some(window_proc),
             cbClsExtra: 0,
             cbWndExtra: 0,
@@ -76,7 +76,7 @@ pub fn create_fullscreen_window() -> anyhow::Result<HWND> {
         )
         .ok();
 
-        *COMPOSITOR_HWND.lock() = Some(hwnd);
+        let _ = COMPOSITOR_HWND.set(hwnd);
 
         info!("Compositor window created: {:?}", hwnd);
         Ok(hwnd)
@@ -85,7 +85,7 @@ pub fn create_fullscreen_window() -> anyhow::Result<HWND> {
 
 /// Return the compositor window handle if it has been created.
 pub fn get_compositor_hwnd() -> Option<HWND> {
-    *COMPOSITOR_HWND.lock()
+    COMPOSITOR_HWND.get().copied()
 }
 
 /// Window procedure for the compositor window.

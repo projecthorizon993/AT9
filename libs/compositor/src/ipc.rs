@@ -11,6 +11,7 @@ use windows::Win32::System::Pipes::{
     PIPE_ACCESS_DUPLEX, PIPE_READMODE_MESSAGE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_MESSAGE,
     PIPE_WAIT,
 };
+use windows::core::PCWSTR;
 
 use crate::{animation::TransitionManager, ui::UIScene};
 
@@ -130,8 +131,9 @@ impl CompositorIpc {
                     let _ = self.handle_connection(stream, &mut callback).await;
                     let _ = DisconnectNamedPipe(pipe);
                 } else {
-                    let err = windows::core::Error::from_win32();
-                    error!("Failed to connect named pipe: {}", err);
+                    // Use GetLastError instead of from_win32
+                    let err = windows::Win32::Foundation::GetLastError();
+                    error!("Failed to connect named pipe: {:?}", err);
                     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                 }
             }
@@ -192,7 +194,7 @@ impl CompositorIpc {
             windows::Win32::System::IO::WriteFile(pipe, data, Some(&mut written), None)?;
             windows::Win32::System::IO::WriteFile(
                 pipe,
-                &[slu_ipc::common::END_OF_TRANSMISSION_BLOCK],
+                &[END_OF_TRANSMISSION_BLOCK],
                 Some(&mut written),
                 None,
             )?;

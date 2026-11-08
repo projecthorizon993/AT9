@@ -110,15 +110,15 @@ impl VulkanContext {
         let hinstance = windows::Win32::System::LibraryLoader::GetModuleHandleW(None)?;
         let win32_surface_create_info = ash::vk::Win32SurfaceCreateInfoKHR {
             s_type: ash::vk::StructureType::WIN32_SURFACE_CREATE_INFO_KHR,
-            hinstance: hinstance.0,
-            hwnd,
+            hinstance: hinstance.0 as isize,
+            hwnd: hwnd.0 as isize,
             ..Default::default()
         };
         let surface = surface_loader.create_win32_surface_khr(
             &ash::vk::Win32SurfaceCreateInfoKHR {
                 s_type: ash::vk::StructureType::WIN32_SURFACE_CREATE_INFO_KHR,
-                hinstance: hinstance.0,
-                hwnd,
+                hinstance: hinstance.0 as isize,
+                hwnd: hwnd.0 as isize,
                 ..Default::default()
             },
             None,
@@ -142,13 +142,13 @@ impl VulkanContext {
         let physical_device = selected.unwrap_or(physical_devices[0]);
 
         let props = instance.get_physical_device_properties(physical_device);
-        let device_name = String::from_utf8_lossy(
-            &props.device_name[..props
-                .device_name
-                .iter()
-                .position(|&b| b == 0)
-                .unwrap_or(props.device_name.len())],
-        );
+        let device_name_bytes: Vec<u8> = props
+            .device_name
+            .iter()
+            .take_while(|&&b| b != 0)
+            .map(|&b| b as u8)
+            .collect();
+        let device_name = String::from_utf8_lossy(&device_name_bytes);
         info!("Using Vulkan device: {}", device_name);
 
         // Queue family with present support.
@@ -570,8 +570,7 @@ impl VulkanContext {
             .get_physical_device_surface_capabilities_khr(self.physical_device, self.surface)?;
         let formats = ash::khr::Surface::new(&self.entry, &self.instance)
             .get_physical_device_surface_formats_khr(self.physical_device, self.surface)?;
-        let surface_format = self
-            .swapchain_images
+        let surface_format = formats
             .iter()
             .find(|f| f.format == ash::vk::Format::B8G8R8A8_UNORM)
             .unwrap_or(&formats[0]);

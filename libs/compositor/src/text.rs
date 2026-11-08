@@ -8,8 +8,8 @@ use windows::Win32::Graphics::DirectWrite::{
 };
 use windows::Win32::Graphics::Gdi::{
     BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BITMAPINFOHEADER as BITMAPINFOHEADER_WIN32,
-    CreateCompatibleDC, CreateDIBSection, DIB_RGB_COLORS, DeleteDC, DeleteObject, HBITMAP, HDC,
-    HGDIOBJ, SelectObject,
+    CreateCompatibleDC, CreateDIBSection, DIB_RGB_COLORS, DeleteDC, DeleteObject, HBITMAP, HBRUSH,
+    HDC, HGDIOBJ, SelectObject,
 };
 use windows::Win32::UI::WindowsAndMessaging::GetDC;
 use windows::core::{ComInterface, PCWSTR, implement, w};
@@ -66,7 +66,7 @@ impl TextRenderer {
 
             // Create a compatible DC and DIB section for off-screen glyph measurement.
             let hdc = GetDC(HWND::default())?;
-            let compat_dc = CreateCompatibleDC(Some(hdc))?;
+            let compat_dc = CreateCompatibleDC(Some(hdc)).ok()?;
 
             Ok(Self {
                 factory: Some(factory),
@@ -117,12 +117,11 @@ impl TextRenderer {
                 .ok()?;
 
             let mut wide: [u16; 2] = [c as u16, 0];
-            let pwstr = PCWSTR::from_raw(wide.as_ptr());
 
             // Measure the glyph.
             let mut metrics = windows::Win32::Graphics::DirectWrite::DWRITE_TEXT_METRICS::default();
             let layout = factory
-                .CreateTextLayout(pwstr, 1, &text_format, 1000.0, 1000.0)
+                .CreateTextLayout(&wide, 1, &text_format, 1000.0, 1000.0)
                 .ok()?;
             let _ = layout.GetMetrics(&mut metrics);
 
@@ -140,7 +139,7 @@ impl TextRenderer {
                     biHeight: -height, // top-down
                     biPlanes: 1,
                     biBitCount: 32,
-                    biCompression: BI_RGB,
+                    biCompression: BI_RGB.0,
                     biSizeImage: 0,
                     biXPelsPerMeter: 0,
                     biYPelsPerMeter: 0,
@@ -152,7 +151,7 @@ impl TextRenderer {
 
             let mut bits: *mut u8 = std::ptr::null_mut();
             let hbitmap = CreateDIBSection(
-                dc,
+                Some(dc),
                 &mut bmi,
                 DIB_RGB_COLORS,
                 &mut bits as *mut _ as *mut _,
@@ -163,7 +162,7 @@ impl TextRenderer {
                 return None;
             }
 
-            let old = SelectObject(dc, hbitmap);
+            let old = SelectObject(dc, hbitmap.into());
             // Fill with transparent black.
             let _ = windows::Win32::Graphics::Gdi::PatBlt(
                 dc,
@@ -187,13 +186,13 @@ impl TextRenderer {
                 windows::Win32::Graphics::Gdi::RGB(255, 255, 255),
             );
             let _ = windows::Win32::Graphics::Gdi::FillRect(dc, &rect, brush);
-            let _ = windows::Win32::Graphics::Gdi::DeleteObject(brush);
+            let _ = windows::Win32::Graphics::Gdi::DeleteObject(brush.into());
 
             let _ = SelectObject(dc, old);
-            let _ = DeleteObject(hbitmap);
+            let _ = DeleteObject(hbitmap.into());
 
             // Read bits into RGBA8.
-            let row_size = (width * 4) as usize;
+            let row_size = (width as usize) * 4;
             let mut pixels = vec![0u8; row_size * height as usize];
             std::ptr::copy_nonoverlapping(bits, pixels.as_mut_ptr(), pixels.len());
 
