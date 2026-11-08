@@ -3,16 +3,15 @@ use parking_lot::Mutex;
 use std::collections::HashMap;
 use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::Graphics::DirectWrite::{
-    DWRITE_FACTORY_TYPE_SHARED, DWRITE_FONT_WEIGHT, DWRITE_FONT_WEIGHT_NORMAL,
-    DWRITE_TEXT_ALIGNMENT_LEADING, IDWriteFactory, IDWriteTextFormat,
+    DWRITE_FACTORY_TYPE_SHARED, DWRITE_FONT_WEIGHT, DWRITE_FONT_WEIGHT_NORMAL, IDWriteFactory,
+    IDWriteTextFormat,
 };
 use windows::Win32::Graphics::Gdi::{
-    BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BITMAPINFOHEADER as BITMAPINFOHEADER_WIN32,
-    CreateCompatibleDC, CreateDIBSection, DIB_RGB_COLORS, DeleteDC, DeleteObject, HBITMAP, HBRUSH,
-    HDC, HGDIOBJ, SelectObject,
+    BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, CreateDIBSection, DIB_RGB_COLORS,
+    DeleteDC, DeleteObject, HBITMAP, HDC, HGDIOBJ, SelectObject,
 };
 use windows::Win32::UI::WindowsAndMessaging::GetDC;
-use windows::core::{ComInterface, PCWSTR, implement, w};
+use windows::core::PCWSTR;
 
 /// A single glyph in the texture atlas.
 #[derive(Debug, Clone)]

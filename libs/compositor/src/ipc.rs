@@ -1,17 +1,15 @@
-use log::{debug, error, info, warn};
-use slu_ipc::{
-    common::{END_OF_TRANSMISSION_BLOCK, read_from_ipc_stream, write_to_ipc_stream},
-    messages::IpcResponse,
-};
+use log::{debug, error, info};
+use slu_ipc::{common::END_OF_TRANSMISSION_BLOCK, messages::IpcResponse};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
 
-use windows::Win32::Foundation::HANDLE;
+use windows::Win32::Foundation::CloseHandle;
+use windows::Win32::Foundation::{GENERIC_READ, GENERIC_WRITE, HANDLE, OPEN_EXISTING};
+use windows::Win32::System::IO::{ReadFile, WriteFile};
 use windows::Win32::System::Pipes::{
     ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, GetNamedPipeHandleState,
     PIPE_ACCESS_DUPLEX, PIPE_READMODE_MESSAGE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_MESSAGE,
     PIPE_WAIT,
 };
-use windows::core::PCWSTR;
 
 use crate::{animation::TransitionManager, ui::UIScene};
 
@@ -131,7 +129,6 @@ impl CompositorIpc {
                     let _ = self.handle_connection(stream, &mut callback).await;
                     let _ = DisconnectNamedPipe(pipe);
                 } else {
-                    // Use GetLastError instead of from_win32
                     let err = windows::Win32::Foundation::GetLastError();
                     error!("Failed to connect named pipe: {:?}", err);
                     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -176,11 +173,10 @@ impl CompositorIpc {
         unsafe {
             let pipe = windows::Win32::System::Pipes::CreateFileW(
                 pipe_name,
-                windows::Win32::Foundation::GENERIC_READ
-                    | windows::Win32::Foundation::GENERIC_WRITE,
+                GENERIC_READ | GENERIC_WRITE,
                 0,
                 None,
-                windows::Win32::Foundation::OPEN_EXISTING,
+                OPEN_EXISTING,
                 0,
                 None,
             )?;
@@ -191,20 +187,15 @@ impl CompositorIpc {
 
             // Write message + EOT block.
             let mut written = 0u32;
-            windows::Win32::System::IO::WriteFile(pipe, data, Some(&mut written), None)?;
-            windows::Win32::System::IO::WriteFile(
-                pipe,
-                &[END_OF_TRANSMISSION_BLOCK],
-                Some(&mut written),
-                None,
-            )?;
+            WriteFile(pipe, data, Some(&mut written), None)?;
+            WriteFile(pipe, &[END_OF_TRANSMISSION_BLOCK], Some(&mut written), None)?;
 
             // Read response.
             let mut buf = [0u8; 4096];
             let mut read = 0u32;
-            windows::Win32::System::IO::ReadFile(pipe, &mut buf, Some(&mut read), None)?;
+            ReadFile(pipe, &mut buf, Some(&mut read), None)?;
 
-            let _ = windows::Win32::Foundation::CloseHandle(pipe);
+            let _ = CloseHandle(pipe);
 
             if read > 0 {
                 Ok(IpcResponse::from_bytes(&buf[..read as usize])?)

@@ -1,16 +1,15 @@
 use log::{debug, error, info, warn};
 use parking_lot::Mutex;
-use std::sync::Arc;
 
 /// Vulkan rendering context: instance, device, swapchain, and resources.
 pub struct VulkanContext {
     pub entry: ash::Entry,
     pub instance: ash::Instance,
-    pub debug_utils: ash::ext::DebugUtils,
+    pub debug_utils: ash::ext::debug_utils::DebugUtils,
     pub debug_messenger: Option<ash::vk::DebugUtilsMessengerEXT>,
     pub surface: ash::vk::SurfaceKHR,
-    pub surface_loader: ash::khr::Surface,
-    pub swapchain_loader: ash::khr::Swapchain,
+    pub surface_loader: ash::khr::surface::Surface,
+    pub swapchain_loader: ash::khr::swapchain::Swapchain,
     pub swapchain: ash::vk::SwapchainKHR,
     pub physical_device: ash::vk::PhysicalDevice,
     pub device: ash::Device,
@@ -59,15 +58,15 @@ impl VulkanContext {
         };
 
         let mut extension_names = vec![
-            ash::khr::Surface::name().as_ptr(),
-            ash::khr::Win32Surface::name().as_ptr(),
+            ash::khr::surface::Surface::name().as_ptr(),
+            ash::khr::win32_surface::Win32Surface::name().as_ptr(),
         ];
 
         let mut layer_names: Vec<*const i8> = Vec::new();
 
         #[cfg(debug_assertions)]
         {
-            extension_names.push(ash::ext::DebugUtils::name().as_ptr());
+            extension_names.push(ash::ext::debug_utils::DebugUtils::name().as_ptr());
             layer_names.push(b"VK_LAYER_KHRONOS_validation\0".as_ptr() as *const i8);
         }
 
@@ -89,7 +88,7 @@ impl VulkanContext {
 
         // Debug messenger (debug only).
         let debug_messenger = if cfg!(debug_assertions) {
-            let debug_utils = ash::ext::DebugUtils::new(&entry, &instance);
+            let debug_utils = ash::ext::debug_utils::DebugUtils::new(&entry, &instance);
             let debug_create_info = ash::vk::DebugUtilsMessengerCreateInfoEXT {
                 s_type: ash::vk::StructureType::DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
                 message_severity: ash::vk::DebugUtilsMessageSeverityFlagsEXT::ERROR
@@ -106,7 +105,7 @@ impl VulkanContext {
         };
 
         // Surface (Win32).
-        let surface_loader = ash::khr::Surface::new(&entry, &instance);
+        let surface_loader = ash::khr::surface::Surface::new(&entry, &instance);
         let hinstance = windows::Win32::System::LibraryLoader::GetModuleHandleW(None)?;
         let win32_surface_create_info = ash::vk::Win32SurfaceCreateInfoKHR {
             s_type: ash::vk::StructureType::WIN32_SURFACE_CREATE_INFO_KHR,
@@ -157,12 +156,11 @@ impl VulkanContext {
         let mut queue_family_index = None;
         for (i, props) in queue_family_props.iter().enumerate() {
             let supports_graphics = props.queue_flags.contains(ash::vk::QueueFlags::GRAPHICS);
-            let supports_present =
-                unsafe {
-                    ash::khr::Surface::new(&entry, &instance)
-                        .get_physical_device_surface_support_khr(physical_device, i as u32, surface)
-                }
-                .unwrap_or(false);
+            let supports_present = unsafe {
+                ash::khr::surface::Surface::new(&entry, &instance)
+                    .get_physical_device_surface_support_khr(physical_device, i as u32, surface)
+            }
+            .unwrap_or(false);
             if supports_graphics && supports_present {
                 queue_family_index = Some(i as u32);
                 break;
@@ -180,7 +178,7 @@ impl VulkanContext {
             ..Default::default()
         }];
 
-        let device_extensions = [ash::khr::Swapchain::name().as_ptr()];
+        let device_extensions = [ash::khr::swapchain::Swapchain::name().as_ptr()];
 
         let device_create_info = ash::vk::DeviceCreateInfo {
             s_type: ash::vk::StructureType::DEVICE_CREATE_INFO,
@@ -195,13 +193,13 @@ impl VulkanContext {
         let queue = device.get_device_queue(queue_family_index, 0);
 
         // Swapchain.
-        let swapchain_loader = ash::khr::Swapchain::new(&instance, &device);
+        let swapchain_loader = ash::khr::swapchain::Swapchain::new(&instance, &device);
 
-        let caps = ash::khr::Surface::new(&entry, &instance)
+        let caps = ash::khr::surface::Surface::new(&entry, &instance)
             .get_physical_device_surface_capabilities_khr(physical_device, surface)?;
-        let formats = ash::khr::Surface::new(&entry, &instance)
+        let formats = ash::khr::surface::Surface::new(&entry, &instance)
             .get_physical_device_surface_formats_khr(physical_device, surface)?;
-        let present_modes = ash::khr::Surface::new(&entry, &instance)
+        let present_modes = ash::khr::surface::Surface::new(&entry, &instance)
             .get_physical_device_surface_present_modes_khr(physical_device, surface)?;
 
         // Choose format: BGRA8 unorm with SRGB or UNORM.
@@ -392,10 +390,10 @@ impl VulkanContext {
         Ok(Self {
             entry,
             instance,
-            debug_utils: ash::ext::DebugUtils::new(&entry, &instance),
+            debug_utils: ash::ext::debug_utils::DebugUtils::new(&entry, &instance),
             debug_messenger,
             surface,
-            surface_loader: ash::khr::Surface::new(&entry, &instance),
+            surface_loader: ash::khr::surface::Surface::new(&entry, &instance),
             swapchain_loader,
             swapchain,
             physical_device,
@@ -566,9 +564,9 @@ impl VulkanContext {
 
         // Recreate swapchain (same params as initial creation).
         // Simplified: in a full implementation we'd re-query surface caps.
-        let caps = ash::khr::Surface::new(&self.entry, &self.instance)
+        let caps = ash::khr::surface::Surface::new(&self.entry, &self.instance)
             .get_physical_device_surface_capabilities_khr(self.physical_device, self.surface)?;
-        let formats = ash::khr::Surface::new(&self.entry, &self.instance)
+        let formats = ash::khr::surface::Surface::new(&self.entry, &self.instance)
             .get_physical_device_surface_formats_khr(self.physical_device, self.surface)?;
         let surface_format = formats
             .iter()
@@ -685,10 +683,11 @@ impl Drop for VulkanContext {
             self.device.destroy_render_pass(self.render_pass, None);
             self.device.destroy_device(None);
             if let Some(dm) = self.debug_messenger {
-                let debug_utils = ash::ext::DebugUtils::new(&self.entry, &self.instance);
+                let debug_utils =
+                    ash::ext::debug_utils::DebugUtils::new(&self.entry, &self.instance);
                 debug_utils.destroy_debug_utils_messenger_ext(dm, None);
             }
-            let surface_loader = ash::khr::Surface::new(&self.entry, &self.instance);
+            let surface_loader = ash::khr::surface::Surface::new(&self.entry, &self.instance);
             surface_loader.destroy_surface_khr(self.surface, None);
             self.instance.destroy_instance(None);
         }
