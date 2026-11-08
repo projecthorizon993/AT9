@@ -93,8 +93,9 @@ windows-core = "0.62.2"
 winreg = "0.55.0"
 time = "0.3.55"
 scc = "3.8.4"
-ash = { version = "0.38", features = ["default", "linked", "ext_debug_utils", "khr_surface", "khr_win32_surface", "khr_swapchain"] }
+ash = { version = "0.38", features = ["default", "linked"] }
 raw-window-handle = "0.5"
 
 [patch.crates-io]
 tao = { git = "https://github.com/eythaann/tao", branch = "dev" }
+ash = { version = "0.39", features = ["ext_debug_utils", "khr_surface", "khr_win32_surface", "khr_swapchain"] }
