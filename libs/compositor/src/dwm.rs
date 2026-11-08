@@ -1,5 +1,6 @@
 use log::{error, info, warn};
 use windows::Win32::Foundation::HWND;
+use windows::Win32::Graphics::Dwm::{self, DWMWINDOWATTRIBUTE};
 
 /// DWM system backdrop type values (undocumented but stable on Windows 11).
 ///
@@ -10,7 +11,10 @@ const DWMSBT_TRANSIENTWINDOW: u32 = 3;
 const DWMSBT_TABBEDWINDOW: u32 = 4;
 
 /// DWM window attribute: system backdrop type (Mica / Acrylic).
-const DWMWA_SYSTEMBACKDROP_TYPE: u32 = 38;
+const DWMWA_SYSTEMBACKDROP_TYPE: DWMWINDOWATTRIBUTE = DWMWINDOWATTRIBUTE(38);
+
+/// DWM window attribute: immersive dark mode.
+const DWMWA_IMMERSIVE_DARK_MODE: DWMWINDOWATTRIBUTE = DWMWINDOWATTRIBUTE(19);
 
 /// Apply Windows 11 Mica/Acrylic backdrop blur to the given window.
 ///
@@ -24,7 +28,7 @@ pub fn apply_backdrop_blur(hwnd: HWND, use_mica: bool) -> anyhow::Result<()> {
             DWMSBT_TRANSIENTWINDOW
         };
 
-        let hr = windows::Win32::Graphics::Dwm::DwmSetWindowAttribute(
+        let hr = Dwm::DwmSetWindowAttribute(
             hwnd,
             DWMWA_SYSTEMBACKDROP_TYPE,
             &backdrop_type as *const u32 as *const _,
@@ -53,11 +57,10 @@ pub fn apply_backdrop_blur(hwnd: HWND, use_mica: bool) -> anyhow::Result<()> {
 
 /// Enable immersive dark mode for the window title bar / frame.
 pub fn enable_immersive_dark_mode(hwnd: HWND, enabled: bool) -> anyhow::Result<()> {
-    const DWMWA_IMMERSIVE_DARK_MODE: u32 = 19;
     let value: u32 = if enabled { 1 } else { 0 };
 
     unsafe {
-        let hr = windows::Win32::Graphics::Dwm::DwmSetWindowAttribute(
+        let hr = Dwm::DwmSetWindowAttribute(
             hwnd,
             DWMWA_IMMERSIVE_DARK_MODE,
             &value as *const u32 as *const _,
@@ -73,10 +76,9 @@ pub fn enable_immersive_dark_mode(hwnd: HWND, enabled: bool) -> anyhow::Result<(
 
 /// Check if DWM composition is enabled (needed for transparency to work correctly).
 pub fn is_composition_enabled() -> anyhow::Result<bool> {
-    let mut enabled: i32 = 0;
     unsafe {
-        windows::Win32::Graphics::Dwm::DwmIsCompositionEnabled(&mut enabled)?;
-        Ok(enabled != 0)
+        let enabled = Dwm::DwmIsCompositionEnabled()?;
+        Ok(enabled.as_bool())
     }
 }
 
@@ -88,6 +90,6 @@ mod tests {
     fn test_backdrop_type_constants() {
         assert_eq!(DWMSBT_MAINWINDOW, 2);
         assert_eq!(DWMSBT_TRANSIENTWINDOW, 3);
-        assert_eq!(DWMWA_SYSTEMBACKDROP_TYPE, 38);
+        assert_eq!(DWMWA_SYSTEMBACKDROP_TYPE.0, 38);
     }
 }

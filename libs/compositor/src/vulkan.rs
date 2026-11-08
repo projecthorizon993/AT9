@@ -31,6 +31,7 @@ pub struct VulkanContext {
     pub swapchain_extent: ash::vk::Extent2D,
     pub width: u32,
     pub height: u32,
+    pub hwnd: windows::Win32::Foundation::HWND,
     /// Damage tracking: whether the current frame needs re-recording.
     pub dirty: Mutex<bool>,
 }
@@ -42,7 +43,7 @@ impl VulkanContext {
         width: u32,
         height: u32,
     ) -> anyhow::Result<Self> {
-        let entry = ash::Entry::linked();
+        let entry = ash::Entry::load()?;
 
         let app_name = std::ffi::CString::new("Seelen Compositor")?;
         let engine_name = std::ffi::CString::new("Seelen")?;

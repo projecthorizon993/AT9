@@ -2,20 +2,19 @@ use log::{debug, warn};
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::sync::Arc;
-use windows::Win32::Foundation::{HANDLE, HWND, RECT};
+use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::Graphics::DirectWrite::{
-    D2D1_FACTORY_TYPE_SINGLE_THREADED, DWRITE_FACTORY_TYPE_SHARED, DWRITE_FONT_WEIGHT,
-    DWRITE_FONT_WEIGHT_NORMAL, DWRITE_TEXT_ALIGNMENT_LEADING,
-    DWRITE_TEXTURED_GLYPH_SNAPPING_DEFAULT, ID2D1Factory, IDWriteFactory, IDWriteTextFormat,
-    IDWriteTextRenderer,
+    DWRITE_FACTORY_TYPE_SHARED, DWRITE_FONT_WEIGHT, DWRITE_FONT_WEIGHT_NORMAL,
+    DWRITE_TEXT_ALIGNMENT_LEADING, IDWriteFactory, IDWriteTextFormat,
 };
 use windows::Win32::Graphics::Gdi::{
-    BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, CreateDIBSection, DIB_RGB_COLORS,
-    DeleteDC, DeleteObject, GetDeviceCaps, HBITMAP, HDC, SelectObject,
+    BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BITMAPINFOHEADER as BITMAPINFOHEADER_WIN32,
+    CreateCompatibleDC, CreateDIBSection, DIB_RGB_COLORS, DeleteDC, DeleteObject, GetDeviceCaps,
+    HBITMAP, HDC, HGDIOBJ, SelectObject,
 };
 use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::WindowsAndMessaging::GetDC;
-use windows::core::{ComInterface, PCWSTR, implement, w};
+use windows::core::{ComInterface, PCWSTR};
 
 /// A single glyph in the texture atlas.
 #[derive(Debug, Clone)]
@@ -69,7 +68,7 @@ impl TextRenderer {
 
             // Create a compatible DC and DIB section for off-screen glyph measurement.
             let hdc = GetDC(HWND::default())?;
-            let compat_dc = CreateCompatibleDC(hdc)?;
+            let compat_dc = CreateCompatibleDC(Some(hdc))?;
 
             Ok(Self {
                 factory: Some(factory),
@@ -119,8 +118,8 @@ impl TextRenderer {
                 )
                 .ok()?;
 
-            let wide: [u16; 2] = [c as u16, 0];
-            let pwstr = PCWSTR::from_raw(wide.as_ptr());
+            let mut wide: [u16; 2] = [c as u16, 0];
+            let pwstr = PCWSTR::from_raw(wide.as_mut_ptr());
 
             // Measure the glyph.
             let mut metrics = windows::Win32::Graphics::DirectWrite::DWRITE_TEXT_METRICS::default();
@@ -138,7 +137,7 @@ impl TextRenderer {
             // Create a DIB section to render into.
             let mut bmi = BITMAPINFO {
                 bmiHeader: BITMAPINFOHEADER {
-                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                    biSize: std::mem::size_of::<BITMAPINFOHEADER_WIN32>() as u32,
                     biWidth: width,
                     biHeight: -height, // top-down
                     biPlanes: 1,
@@ -150,7 +149,7 @@ impl TextRenderer {
                     biClrUsed: 0,
                     biClrImportant: 0,
                 },
-                bmiColors: [],
+                bmiColors: [windows::Win32::Graphics::Gdi::RGBQUAD::default(); 1],
             };
 
             let mut bits: *mut u8 = std::ptr::null_mut();
@@ -197,7 +196,7 @@ impl TextRenderer {
 
             // Read bits into RGBA8.
             let row_size = (width * 4) as usize;
-            let mut pixels = vec![0u8; row_size * height];
+            let mut pixels = vec![0u8; row_size * height as usize];
             std::ptr::copy_nonoverlapping(bits, pixels.as_mut_ptr(), pixels.len());
 
             Some(Glyph {
@@ -230,12 +229,6 @@ impl Drop for TextRenderer {
         }
     }
 }
-
-/// D2D Factory wrapper (placeholder for future use)
-pub struct D2DFactoryWrapper {}
-
-/// DWrite Text Renderer wrapper (placeholder for future use)
-pub struct DWriteTextRendererWrapper {}
 
 #[cfg(test)]
 mod tests {

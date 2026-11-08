@@ -4,7 +4,7 @@ use std::time::Instant;
 ///
 /// The compositor owns animation timing entirely; the backend only sends
 /// high-level intents (open/close app, duration hints).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Ease {
     /// Constant velocity.
     Linear,

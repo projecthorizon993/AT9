@@ -293,7 +293,7 @@ impl CompositorState {
 }
 
 impl Default for CompositorState {
-    fn default() {
+    fn default() -> Self {
         Self::new()
     }
 }
