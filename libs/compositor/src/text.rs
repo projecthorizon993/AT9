@@ -5,8 +5,9 @@ use windows::Win32::Graphics::DirectWrite::{
     DWRITE_FACTORY_TYPE_SHARED, DWRITE_FONT_WEIGHT_NORMAL, IDWriteFactory, IDWriteTextFormat,
 };
 use windows::Win32::Graphics::Gdi::{
-    BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, CreateDIBSection, DIB_RGB_COLORS,
-    DeleteDC, DeleteObject, HBITMAP, HBRUSH, HDC, HGDIOBJ, RGB, SelectObject,
+    BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BLACKNESS, CreateCompatibleDC, CreateDIBSection,
+    CreateSolidBrush, DIB_RGB_COLORS, DeleteDC, DeleteObject, FillRect, HBITMAP, HBRUSH, HDC,
+    HGDIOBJ, PatBlt, RGB, SelectObject,
 };
 use windows::Win32::UI::WindowsAndMessaging::GetDC;
 use windows::core::PCWSTR;
@@ -161,14 +162,7 @@ impl TextRenderer {
 
             let old = SelectObject(dc, hbitmap.into());
             // Fill with transparent black.
-            let _ = windows::Win32::Graphics::Gdi::PatBlt(
-                dc,
-                0,
-                0,
-                width,
-                height,
-                windows::Win32::Graphics::Gdi::BLACKNESS,
-            );
+            let _ = PatBlt(dc, 0, 0, width, height, BLACKNESS);
 
             // Draw the glyph using DirectWrite rendering (simplified: we draw
             // a solid block for MVP; real glyph outlines need IDWriteTextRenderer).

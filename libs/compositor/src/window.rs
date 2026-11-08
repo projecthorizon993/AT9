@@ -1,15 +1,15 @@
 use log::{info, warn};
 use parking_lot::Mutex;
 use std::ptr;
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, MSG, WPARAM};
 use windows::Win32::Graphics::Gdi::{LWA_ALPHA, SetLayeredWindowAttributes};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, PostMessageW, PostQuitMessage,
-    RegisterClassExW, TranslateMessage, WM_CLOSE, WM_DESTROY, WNDCLASS_STYLES, WNDCLASSEXW,
-    WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
-    WS_VISIBLE,
+    AttachThreadInput, CreateWindowExW, DefWindowProcW, DispatchMessageW, GetDC, GetMessageW,
+    PostMessageW, PostQuitMessage, RegisterClassExW, TranslateMessage, WM_CLOSE, WM_DESTROY,
+    WNDCLASS_STYLES, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
+    WS_EX_TRANSPARENT, WS_POPUP, WS_VISIBLE,
 };
 use windows::core::PCWSTR;
 
@@ -105,7 +105,7 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
 /// received.
 pub fn run_message_loop() {
     unsafe {
-        let mut msg = windows::Win32::Foundation::MSG::default();
+        let mut msg = MSG::default();
         while GetMessageW(&mut msg, None, 0, 0).into() {
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
@@ -124,14 +124,7 @@ pub fn request_close() {
 
 /// Ensure the current thread is ready for Win32 messages.
 pub fn attach_thread_input() -> anyhow::Result<()> {
-    unsafe {
-        windows::Win32::UI::WindowsAndMessaging::AttachThreadInput(
-            GetCurrentThreadId(),
-            GetCurrentThreadId(),
-            true,
-        )
-        .ok()
-    };
+    unsafe { AttachThreadInput(GetCurrentThreadId(), GetCurrentThreadId(), true).ok() };
     Ok(())
 }
 

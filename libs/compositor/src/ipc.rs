@@ -4,7 +4,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
 
 use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::Foundation::{GENERIC_READ, GENERIC_WRITE, HANDLE, OPEN_EXISTING};
-use windows::Win32::System::IO::{ReadFile, WriteFile};
+use windows::Win32::System::IO::{CreateFileW, ReadFile, WriteFile};
 use windows::Win32::System::Pipes::{
     ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, GetNamedPipeHandleState,
     PIPE_ACCESS_DUPLEX, PIPE_READMODE_MESSAGE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_MESSAGE,
@@ -169,7 +169,7 @@ impl CompositorIpc {
         );
 
         unsafe {
-            let pipe = windows::Win32::System::IO::CreateFileW(
+            let pipe = CreateFileW(
                 pipe_name,
                 GENERIC_READ | GENERIC_WRITE,
                 0,
@@ -251,6 +251,9 @@ impl CompositorState {
         _theme: serde_json::Value,
     ) {
         debug!("Applying shell state from backend");
+        // TODO: Convert JSON state into UISurface elements.
+        // This is where the compositor builds its retained UI model from
+        // the backend's source-of-truth state.
         let _ = (taskbar, dock, workspaces);
     }
 
