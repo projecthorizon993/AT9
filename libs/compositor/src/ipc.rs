@@ -11,7 +11,6 @@ use windows::Win32::System::Pipes::{
     PIPE_ACCESS_DUPLEX, PIPE_READMODE_MESSAGE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_MESSAGE,
     PIPE_WAIT,
 };
-use windows::core::PCWSTR;
 
 use crate::{animation::TransitionManager, ui::UIScene};
 
@@ -193,7 +192,7 @@ impl CompositorIpc {
             windows::Win32::System::IO::WriteFile(pipe, data, Some(&mut written), None)?;
             windows::Win32::System::IO::WriteFile(
                 pipe,
-                &[END_OF_TRANSMISSION_BLOCK],
+                &[slu_ipc::common::END_OF_TRANSMISSION_BLOCK],
                 Some(&mut written),
                 None,
             )?;

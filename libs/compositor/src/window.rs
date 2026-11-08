@@ -1,6 +1,6 @@
 use log::{info, warn};
 use parking_lot::Mutex;
-use std::ptr;
+use std::sync::Arc;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Threading::GetCurrentThreadId;
@@ -15,8 +15,8 @@ const CLASS_NAME: PCWSTR = windows::core::w!("SeelenCompositor");
 const WINDOW_NAME: PCWSTR = windows::core::w!("Seelen Compositor");
 
 /// Handle to the compositor window, shared across modules.
-/// We use a raw pointer to avoid Send/Sync issues with HWND.
-static COMPOSITOR_HWND: Mutex<*mut std::ffi::c_void> = Mutex::new(ptr::null_mut());
+/// Use Option<HWND> wrapped in Arc<Mutex<>> for thread safety.
+static COMPOSITOR_HWND: Mutex<Option<HWND>> = Mutex::new(None);
 
 /// Create a fullscreen, transparent, topmost compositor window.
 ///
@@ -27,7 +27,7 @@ pub fn create_fullscreen_window() -> anyhow::Result<HWND> {
     unsafe {
         let hinstance = GetModuleHandleW(None)?;
 
-        let wnd_class = WNDCLASSEXW {
+        let wnd_class = windows::Win32::UI::WindowsAndMessaging::WNDCLASSEXW {
             cbSize: std::mem::size_of::<windows::Win32::UI::WindowsAndMessaging::WNDCLASSEXW>()
                 as u32,
             style: 0,
@@ -76,8 +76,7 @@ pub fn create_fullscreen_window() -> anyhow::Result<HWND> {
         )
         .ok();
 
-        // Store the HWND as a raw pointer to avoid Send/Sync issues
-        *COMPOSITOR_HWND.lock() = hwnd.0;
+        *COMPOSITOR_HWND.lock() = Some(hwnd);
 
         info!("Compositor window created: {:?}", hwnd);
         Ok(hwnd)
@@ -86,8 +85,7 @@ pub fn create_fullscreen_window() -> anyhow::Result<HWND> {
 
 /// Return the compositor window handle if it has been created.
 pub fn get_compositor_hwnd() -> Option<HWND> {
-    let ptr = *COMPOSITOR_HWND.lock();
-    if ptr.is_null() { None } else { Some(HWND(ptr)) }
+    *COMPOSITOR_HWND.lock()
 }
 
 /// Window procedure for the compositor window.

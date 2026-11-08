@@ -1,4 +1,4 @@
-use log::{error, info, warn};
+use log::{info, warn};
 use windows::Win32::Foundation::HWND;
 use windows::Win32::Graphics::Dwm::{self, DWMWINDOWATTRIBUTE};
 

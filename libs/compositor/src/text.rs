@@ -1,7 +1,6 @@
-use log::{debug, warn};
+use log::warn;
 use parking_lot::Mutex;
 use std::collections::HashMap;
-use std::sync::Arc;
 use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::Graphics::DirectWrite::{
     DWRITE_FACTORY_TYPE_SHARED, DWRITE_FONT_WEIGHT, DWRITE_FONT_WEIGHT_NORMAL,
@@ -9,12 +8,11 @@ use windows::Win32::Graphics::DirectWrite::{
 };
 use windows::Win32::Graphics::Gdi::{
     BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BITMAPINFOHEADER as BITMAPINFOHEADER_WIN32,
-    CreateCompatibleDC, CreateDIBSection, DIB_RGB_COLORS, DeleteDC, DeleteObject, GetDeviceCaps,
-    HBITMAP, HDC, HGDIOBJ, SelectObject,
+    CreateCompatibleDC, CreateDIBSection, DIB_RGB_COLORS, DeleteDC, DeleteObject, HBITMAP, HDC,
+    HGDIOBJ, SelectObject,
 };
-use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::WindowsAndMessaging::GetDC;
-use windows::core::{ComInterface, PCWSTR};
+use windows::core::{ComInterface, PCWSTR, implement, w};
 
 /// A single glyph in the texture atlas.
 #[derive(Debug, Clone)]
@@ -119,7 +117,7 @@ impl TextRenderer {
                 .ok()?;
 
             let mut wide: [u16; 2] = [c as u16, 0];
-            let pwstr = PCWSTR::from_raw(wide.as_mut_ptr());
+            let pwstr = PCWSTR::from_raw(wide.as_ptr());
 
             // Measure the glyph.
             let mut metrics = windows::Win32::Graphics::DirectWrite::DWRITE_TEXT_METRICS::default();
@@ -137,7 +135,7 @@ impl TextRenderer {
             // Create a DIB section to render into.
             let mut bmi = BITMAPINFO {
                 bmiHeader: BITMAPINFOHEADER {
-                    biSize: std::mem::size_of::<BITMAPINFOHEADER_WIN32>() as u32,
+                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
                     biWidth: width,
                     biHeight: -height, // top-down
                     biPlanes: 1,
