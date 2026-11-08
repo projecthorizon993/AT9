@@ -1,8 +1,6 @@
 use log::{debug, error, info, warn};
 use parking_lot::Mutex;
 use std::sync::Arc;
-use windows::Win32::Foundation::HWND;
-use windows::core::HRESULT;
 
 /// Vulkan rendering context: instance, device, swapchain, and resources.
 pub struct VulkanContext {
@@ -33,14 +31,17 @@ pub struct VulkanContext {
     pub swapchain_extent: ash::vk::Extent2D,
     pub width: u32,
     pub height: u32,
-    pub hwnd: HWND,
     /// Damage tracking: whether the current frame needs re-recording.
     pub dirty: Mutex<bool>,
 }
 
 impl VulkanContext {
     /// Create a Vulkan context for the given window handle.
-    pub unsafe fn new(hwnd: HWND, width: u32, height: u32) -> anyhow::Result<Self> {
+    pub unsafe fn new(
+        hwnd: windows::Win32::Foundation::HWND,
+        width: u32,
+        height: u32,
+    ) -> anyhow::Result<Self> {
         let entry = ash::Entry::linked();
 
         let app_name = std::ffi::CString::new("Seelen Compositor")?;

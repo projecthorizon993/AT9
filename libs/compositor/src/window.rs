@@ -1,5 +1,6 @@
 use log::{error, info, warn};
 use parking_lot::Mutex;
+use std::ptr;
 use std::sync::Arc;
 use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -16,7 +17,8 @@ const CLASS_NAME: PCWSTR = windows::core::w!("SeelenCompositor");
 const WINDOW_NAME: PCWSTR = windows::core::w!("Seelen Compositor");
 
 /// Handle to the compositor window, shared across modules.
-static COMPOSITOR_HWND: Mutex<Option<HWND>> = Mutex::new(None);
+/// We use a raw pointer to avoid Send/Sync issues with HWND.
+static COMPOSITOR_HWND: Mutex<*mut std::ffi::c_void> = Mutex::new(ptr::null_mut());
 
 /// Create a fullscreen, transparent, topmost compositor window.
 ///
@@ -33,7 +35,7 @@ pub fn create_fullscreen_window() -> anyhow::Result<HWND> {
             lpfnWndProc: Some(window_proc),
             cbClsExtra: 0,
             cbWndExtra: 0,
-            hInstance: hinstance,
+            hInstance: HINSTANCE(hinstance.0),
             hIcon: None,
             hCursor: None,
             hbrBackground: None,
@@ -57,7 +59,7 @@ pub fn create_fullscreen_window() -> anyhow::Result<HWND> {
             std::i32::MAX,
             None,
             None,
-            hinstance,
+            Some(HINSTANCE(hinstance.0)),
             None,
         )?;
 
@@ -75,7 +77,8 @@ pub fn create_fullscreen_window() -> anyhow::Result<HWND> {
         )
         .ok();
 
-        COMPOSITOR_HWND.lock().replace(hwnd);
+        // Store the HWND as a raw pointer to avoid Send/Sync issues
+        *COMPOSITOR_HWND.lock() = hwnd.0;
 
         info!("Compositor window created: {:?}", hwnd);
         Ok(hwnd)
@@ -84,7 +87,8 @@ pub fn create_fullscreen_window() -> anyhow::Result<HWND> {
 
 /// Return the compositor window handle if it has been created.
 pub fn get_compositor_hwnd() -> Option<HWND> {
-    COMPOSITOR_HWND.lock().clone()
+    let ptr = *COMPOSITOR_HWND.lock();
+    if ptr.is_null() { None } else { Some(HWND(ptr)) }
 }
 
 /// Window procedure for the compositor window.
@@ -119,7 +123,7 @@ pub fn run_message_loop() {
 pub fn request_close() {
     if let Some(hwnd) = get_compositor_hwnd() {
         unsafe {
-            let _ = PostMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0));
+            let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0));
         }
     }
 }
