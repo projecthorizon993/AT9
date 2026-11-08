@@ -3,12 +3,11 @@ use parking_lot::Mutex;
 use std::collections::HashMap;
 use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::Graphics::DirectWrite::{
-    DWRITE_FACTORY_TYPE_SHARED, DWRITE_FONT_WEIGHT, DWRITE_FONT_WEIGHT_NORMAL, IDWriteFactory,
-    IDWriteTextFormat,
+    DWRITE_FACTORY_TYPE_SHARED, DWRITE_FONT_WEIGHT_NORMAL, IDWriteFactory, IDWriteTextFormat,
 };
 use windows::Win32::Graphics::Gdi::{
     BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, CreateDIBSection, DIB_RGB_COLORS,
-    DeleteDC, DeleteObject, HBITMAP, HDC, HGDIOBJ, SelectObject,
+    DeleteDC, DeleteObject, HBITMAP, HBRUSH, HDC, HGDIOBJ, SelectObject,
 };
 use windows::Win32::UI::WindowsAndMessaging::GetDC;
 use windows::core::PCWSTR;
@@ -65,7 +64,7 @@ impl TextRenderer {
 
             // Create a compatible DC and DIB section for off-screen glyph measurement.
             let hdc = GetDC(HWND::default())?;
-            let compat_dc = CreateCompatibleDC(Some(hdc)).ok()?;
+            let compat_dc = CreateCompatibleDC(Some(hdc))?;
 
             Ok(Self {
                 factory: Some(factory),
@@ -150,7 +149,7 @@ impl TextRenderer {
 
             let mut bits: *mut u8 = std::ptr::null_mut();
             let hbitmap = CreateDIBSection(
-                Some(dc),
+                dc,
                 &mut bmi,
                 DIB_RGB_COLORS,
                 &mut bits as *mut _ as *mut _,

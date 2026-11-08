@@ -32,3 +32,4 @@ windows-core = { workspace = true }
 log = { workspace = true }
 anyhow = "1.0"
 parking_lot = { workspace = true }
+tokio = { workspace = true, features = ["rt", "io-util", "time", "sync"] }

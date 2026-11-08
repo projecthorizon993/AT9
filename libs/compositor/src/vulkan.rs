@@ -107,12 +107,6 @@ impl VulkanContext {
         // Surface (Win32).
         let surface_loader = ash::khr::surface::Surface::new(&entry, &instance);
         let hinstance = windows::Win32::System::LibraryLoader::GetModuleHandleW(None)?;
-        let win32_surface_create_info = ash::vk::Win32SurfaceCreateInfoKHR {
-            s_type: ash::vk::StructureType::WIN32_SURFACE_CREATE_INFO_KHR,
-            hinstance: hinstance.0 as isize,
-            hwnd: hwnd.0 as isize,
-            ..Default::default()
-        };
         let surface = surface_loader.create_win32_surface_khr(
             &ash::vk::Win32SurfaceCreateInfoKHR {
                 s_type: ash::vk::StructureType::WIN32_SURFACE_CREATE_INFO_KHR,
