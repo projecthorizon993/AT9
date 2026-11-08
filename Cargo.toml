@@ -93,7 +93,7 @@ windows-core = "0.62.2"
 winreg = "0.55.0"
 time = "0.3.55"
 scc = "3.8.4"
-ash = { version = "0.38", features = ["debug", "libloading", "loaded"] }
+ash = { version = "0.38", features = ["default"] }
 raw-window-handle = "0.5"
 
 [patch.crates-io]
