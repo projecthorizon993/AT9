@@ -186,3 +186,61 @@ pub enum Win32TaskbarButtonEvent {
         description: Option<String>,
     },
 }
+
+// ========== Shell -> Renderer (Compositor) ==========
+
+/// Messages from the backend to the Vulkan compositor process.
+/// The backend owns state; the compositor owns pixels and animation timing.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ShellToRenderer {
+    /// New shell state (taskbar, dock, workspaces, theme).
+    ShellState {
+        taskbar: serde_json::Value,
+        dock: serde_json::Value,
+        workspaces: Vec<serde_json::Value>,
+        theme: serde_json::Value,
+    },
+    /// Start an app open/close transition.
+    AppTransitionStart {
+        app_id: String,
+        from_rect: [f32; 4],
+        to_rect: [f32; 4],
+        open: bool,
+    },
+    /// End an app transition.
+    AppTransitionEnd { app_id: String },
+    /// Force a redraw (damage).
+    Invalidate,
+    Quit,
+}
+
+impl ShellToRenderer {
+    pub fn from_bytes(bytes: &[u8]) -> crate::error::Result<Self> {
+        Ok(serde_json::from_slice(bytes)?)
+    }
+
+    pub fn to_bytes(&self) -> crate::error::Result<Vec<u8>> {
+        Ok(serde_json::to_vec(self)?)
+    }
+}
+
+/// Messages from the Vulkan compositor to the backend.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum RendererToShell {
+    /// Input event on a shell element (click, hover, etc.).
+    ShellInput { target: String, kind: String },
+    /// A transition finished.
+    TransitionFinished { app_id: String },
+    /// Compositor is ready (Vulkan initialized).
+    Ready,
+}
+
+impl RendererToShell {
+    pub fn from_bytes(bytes: &[u8]) -> crate::error::Result<Self> {
+        Ok(serde_json::from_slice(bytes)?)
+    }
+
+    pub fn to_bytes(&self) -> crate::error::Result<Vec<u8>> {
+        Ok(serde_json::to_vec(self)?)
+    }
+}

@@ -4,9 +4,13 @@ on:
   pull_request:
     branches:
       - master
+  push:
+    branches:
+      - master
   workflow_call:
 
 jobs:
+  # JavaScript/TypeScript/Deno checks (runs on Linux)
   js-test-and-linter:
     runs-on: ubuntu-latest
     steps:
@@ -21,6 +25,7 @@ jobs:
       - run: npm run type-check
       - run: npm run test
 
+  # Rust formatting and clippy (runs on Windows for Windows-specific features)
   rust-linter:
     runs-on: windows-2025
     steps:
@@ -40,6 +45,7 @@ jobs:
           rustup component add clippy
           cargo clippy --locked --all-targets -- -D warnings
 
+  # Rust tests (runs on Windows)
   rust-test:
     runs-on: windows-2025
     steps:
@@ -51,3 +57,50 @@ jobs:
           cache-key-prefix: rust-test
 
       - run: cargo test --locked --verbose
+
+  # Build the Rust workspace including the new compositor crate
+  rust-build:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          node: false
+          deno: false
+
+      - name: Build workspace (debug)
+        run: cargo build --locked --workspace
+
+      - name: Build compositor crate
+        run: cargo build --locked -p compositor
+
+  # Build the frontend (UI)
+  ui-build:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          rust-components: rustfmt
+
+      - run: npm install
+      - run: npm run build:ui
+        env:
+          WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: ${{ env.WEBVIEW2_BROWSER_EXECUTABLE_FOLDER }}
+
+  # Build full MSIX package (requires signing keys - runs on protected branches)
+  msix-build:
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          rust-components: rustfmt
+
+      - run: npm install
+      - run: cargo build --locked --release --workspace
+      - run: npm run build:ui
+      - uses: ./.github/actions/generate-update-manifest
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}

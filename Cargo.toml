@@ -22,6 +22,7 @@ members = [
   "libs/slu-ipc",
   "libs/slu-macros",
   "libs/utils",
+  "libs/compositor",
   "src",
   "src/hook_dll",
 ]
@@ -92,6 +93,8 @@ windows-core = "0.62.2"
 winreg = "0.55.0"
 time = "0.3.55"
 scc = "3.8.4"
+ash = "0.38"
+raw-window-handle = "0.5"
 
 [patch.crates-io]
 tao = { git = "https://github.com/eythaann/tao", branch = "dev" }
