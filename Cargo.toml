@@ -98,4 +98,4 @@ raw-window-handle = "0.5"
 
 [patch.crates-io]
 tao = { git = "https://github.com/eythaann/tao", branch = "dev" }
-ash = { version = "0.37.3", features = ["ext_debug_utils", "khr_surface", "khr_win32_surface", "khr_swapchain"] }
+ash = { git = "https://github.com/ash-rs/ash", tag = "v0.37.3", features = ["ext_debug_utils", "khr_surface", "khr_win32_surface", "khr_swapchain"] }
