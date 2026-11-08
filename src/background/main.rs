@@ -5,6 +5,7 @@
 mod app;
 mod backups;
 mod cli;
+mod compositor;
 mod error;
 mod exposed;
 mod logger;
@@ -33,10 +34,11 @@ use std::sync::{OnceLock, atomic::AtomicBool};
 
 use app::SeelenUI;
 use cli::{SelfPipe, ServicePipe, handle_console_client};
+use compositor::CompositorPipe;
+use compositor::compositor_manager;
 use error::Result;
 use logger::SeelenLogger;
 use session::SessionManager;
-use slu_ipc::messages::SvcAction;
 use tauri_handlers::register_invoke_handler;
 use tauri_plugins::register_plugins;
 use utils::{
@@ -133,6 +135,9 @@ async fn setup(app_handle: &tauri::AppHandle<tauri::Wry>) -> Result<()> {
         ServicePipe::start_service().await?;
     }
 
+    // Start the Vulkan compositor
+    compositor_manager().ensure_started().await?;
+
     // Pre-warm SessionManager early so its PasswordVault decryption (~1s) overlaps
     // with the integrity checks instead of running during the startup critical path.
     std::thread::spawn(|| {
@@ -197,6 +202,8 @@ fn app_callback(_: &tauri::AppHandle<tauri::Wry>, event: tauri::RunEvent) {
                 // if exit code is 0 it means that the app was closed by the user
                 if code == 0 {
                     ServicePipe::request(SvcAction::Stop).log_error();
+                    // Shutdown compositor
+                    CompositorPipe::shutdown().log_error();
                 }
             }
             // prevent close background on webview windows closing
