@@ -39,6 +39,7 @@ use compositor::compositor_manager;
 use error::Result;
 use logger::SeelenLogger;
 use session::SessionManager;
+use slu_ipc::messages::SvcAction;
 use tauri_handlers::register_invoke_handler;
 use tauri_plugins::register_plugins;
 use utils::{
@@ -202,8 +203,10 @@ fn app_callback(_: &tauri::AppHandle<tauri::Wry>, event: tauri::RunEvent) {
                 // if exit code is 0 it means that the app was closed by the user
                 if code == 0 {
                     ServicePipe::request(SvcAction::Stop).log_error();
-                    // Shutdown compositor
-                    CompositorPipe::shutdown().await.log_error();
+                    // Shutdown compositor - use blocking to handle async in sync context
+                    tokio::runtime::Handle::current().block_on(async {
+                        CompositorPipe::shutdown().await.log_error();
+                    });
                 }
             }
             // prevent close background on webview windows closing
