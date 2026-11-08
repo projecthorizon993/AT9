@@ -1,14 +1,13 @@
-use log::{error, info, warn};
+use log::{info, warn};
 use parking_lot::Mutex;
 use std::ptr;
-use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetClientRect, GetMessageW, PostMessageW,
-    PostQuitMessage, RegisterClassExW, TranslateMessage, WM_CLOSE, WM_DESTROY, WNDCLASS_STYLES,
-    WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
-    WS_EX_TRANSPARENT, WS_POPUP, WS_VISIBLE,
+    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, PostMessageW, PostQuitMessage,
+    RegisterClassExW, TranslateMessage, WM_CLOSE, WM_DESTROY, WNDCLASSEXW, WS_EX_LAYERED,
+    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP, WS_VISIBLE,
 };
 use windows::core::PCWSTR;
 
@@ -29,12 +28,13 @@ pub fn create_fullscreen_window() -> anyhow::Result<HWND> {
         let hinstance = GetModuleHandleW(None)?;
 
         let wnd_class = WNDCLASSEXW {
-            cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
-            style: WNDCLASS_STYLES(0),
+            cbSize: std::mem::size_of::<windows::Win32::UI::WindowsAndMessaging::WNDCLASSEXW>()
+                as u32,
+            style: 0,
             lpfnWndProc: Some(window_proc),
             cbClsExtra: 0,
             cbWndExtra: 0,
-            hInstance: hinstance,
+            hInstance: windows::Win32::Foundation::HINSTANCE(hinstance.0),
             hIcon: None,
             hCursor: None,
             hbrBackground: None,
@@ -58,7 +58,7 @@ pub fn create_fullscreen_window() -> anyhow::Result<HWND> {
             std::i32::MAX,
             None,
             None,
-            hinstance,
+            Some(windows::Win32::Foundation::HINSTANCE(hinstance.0)),
             None,
         )?;
 

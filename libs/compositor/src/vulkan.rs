@@ -1,5 +1,6 @@
 use log::{debug, error, info, warn};
 use parking_lot::Mutex;
+use std::ptr;
 use std::sync::Arc;
 
 /// Vulkan rendering context: instance, device, swapchain, and resources.
@@ -31,7 +32,7 @@ pub struct VulkanContext {
     pub swapchain_extent: ash::vk::Extent2D,
     pub width: u32,
     pub height: u32,
-    pub hwnd: windows::Win32::Foundation::HWND,
+    pub hwnd: *mut std::ffi::c_void,
     /// Damage tracking: whether the current frame needs re-recording.
     pub dirty: Mutex<bool>,
 }
@@ -99,18 +100,18 @@ impl VulkanContext {
                 pfn_user_callback: Some(vulkan_debug_callback),
                 ..Default::default()
             };
-            Some(instance.create_debug_utils_messenger_ext(&debug_create_info, None)?)
+            let debug_utils = ash::extensions::ext::DebugUtils::new(&entry, &instance);
+            Some(debug_utils.create_debug_utils_messenger_ext(&debug_create_info, None)?)
         } else {
             None
         };
 
         // Surface (Win32).
         let surface_loader = ash::extensions::ext::DebugUtils::new(&entry, &instance);
-        let hinstance = windows::Win32::System::LibraryLoader::GetModuleHandleW(None)?;
         let win32_surface_create_info = ash::vk::Win32SurfaceCreateInfoKHR {
             s_type: ash::vk::StructureType::WIN32_SURFACE_CREATE_INFO_KHR,
-            hinstance: hinstance.0,
-            hwnd: hwnd.0,
+            hinstance: windows::Win32::System::LibraryLoader::GetModuleHandleW(None)?,
+            hwnd,
             ..Default::default()
         };
         let surface_loader_khr = ash::extensions::khr::Surface::new(&entry, &instance);
@@ -135,16 +136,14 @@ impl VulkanContext {
         let physical_device = selected.unwrap_or(physical_devices[0]);
 
         let props = instance.get_physical_device_properties(physical_device);
-        info!(
-            "Using Vulkan device: {}",
-            String::from_utf8_lossy(
-                &props.device_name[..props
-                    .device_name
-                    .iter()
-                    .position(|&b| b == 0)
-                    .unwrap_or(props.device_name.len())]
-            )
+        let device_name = String::from_utf8_lossy(
+            &props.device_name[..props
+                .device_name
+                .iter()
+                .position(|&b| b == 0)
+                .unwrap_or(props.device_name.len())],
         );
+        info!("Using Vulkan device: {}", device_name);
 
         // Queue family with present support.
         let queue_family_props =
@@ -169,12 +168,11 @@ impl VulkanContext {
             .ok_or_else(|| anyhow::anyhow!("No queue family supports graphics + present"))?;
 
         // Logical device.
-        let queue_priority = [1.0f32];
         let queue_create_infos = [ash::vk::DeviceQueueCreateInfo {
             s_type: ash::vk::StructureType::DEVICE_QUEUE_CREATE_INFO,
             queue_family_index,
             queue_count: 1,
-            p_queue_priorities: queue_priority.as_ptr(),
+            p_queue_priorities: &1.0f32,
             ..Default::default()
         }];
 
@@ -285,7 +283,7 @@ impl VulkanContext {
                     },
                     ..Default::default()
                 };
-                device.create_image_view(&create_info, None).unwrap()
+                unsafe { device.create_image_view(&create_info, None) }.unwrap()
             })
             .collect();
 
@@ -341,7 +339,7 @@ impl VulkanContext {
                     layers: 1,
                     ..Default::default()
                 };
-                device.create_framebuffer(&create_info, None).unwrap()
+                unsafe { device.create_framebuffer(&create_info, None) }.unwrap()
             })
             .collect();
 
@@ -415,7 +413,7 @@ impl VulkanContext {
             swapchain_extent,
             width,
             height,
-            hwnd,
+            hwnd: hwnd.0,
             dirty: Mutex::new(true),
         })
     }
@@ -624,7 +622,7 @@ impl VulkanContext {
                     },
                     ..Default::default()
                 };
-                device.create_image_view(&create_info, None).unwrap()
+                unsafe { self.device.create_image_view(&create_info, None) }.unwrap()
             })
             .collect();
 
@@ -643,18 +641,19 @@ impl VulkanContext {
                     layers: 1,
                     ..Default::default()
                 };
-                device.create_framebuffer(&create_info, None).unwrap()
+                unsafe { self.device.create_framebuffer(&create_info, None) }.unwrap()
             })
             .collect();
 
         self.command_buffers =
-            device.allocate_command_buffers(&ash::vk::CommandBufferAllocateInfo {
-                s_type: ash::vk::StructureType::COMMAND_BUFFER_ALLOCATE_INFO,
-                command_pool: self.command_pool,
-                level: ash::vk::CommandBufferLevel::PRIMARY,
-                command_buffer_count: self.swapchain_images.len() as u32,
-                ..Default::default()
-            })?;
+            self.device
+                .allocate_command_buffers(&ash::vk::CommandBufferAllocateInfo {
+                    s_type: ash::vk::StructureType::COMMAND_BUFFER_ALLOCATE_INFO,
+                    command_pool: self.command_pool,
+                    level: ash::vk::CommandBufferLevel::PRIMARY,
+                    command_buffer_count: self.swapchain_images.len() as u32,
+                    ..Default::default()
+                })?;
 
         self.mark_dirty();
         Ok(())
@@ -684,8 +683,9 @@ impl Drop for VulkanContext {
             self.device.destroy_render_pass(self.render_pass, None);
             self.device.destroy_device(None);
             if let Some(dm) = self.debug_messenger {
-                self.surface_loader
-                    .destroy_debug_utils_messenger_ext(dm, None);
+                let debug_utils =
+                    ash::extensions::ext::DebugUtils::new(&self.entry, &self.instance);
+                debug_utils.destroy_debug_utils_messenger_ext(dm, None);
             }
             self.surface_loader_khr
                 .destroy_surface_khr(self.surface, None);

@@ -116,7 +116,7 @@ impl CompositorIpc {
                 4096, // in buffer
                 0,    // default timeout
                 None,
-            )?;
+            );
 
             if pipe.is_invalid() {
                 return Err(anyhow::anyhow!("Failed to create named pipe"));
