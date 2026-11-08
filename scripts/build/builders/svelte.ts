@@ -33,6 +33,7 @@ export function createSvelteBuildConfig(
       ".yml": "text",
     },
     conditions: ["svelte"], // needed to support some imports
+    external: ["@seelen-ui/lib/esm/gen/types/SeelenWegSide"], // Svelte 5 Getter/Setter compatibility
     plugins: [
       createLoggerPlugin("Svelte", entryPoints.length, isWatchMode),
       sveltePlugin({
