@@ -1,13 +1,14 @@
-use log::{error, info};
+use log::{error, info, warn};
 use parking_lot::Mutex;
 use std::sync::Arc;
 use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetClientRect, GetMessageW, PostQuitMessage,
-    RegisterClassExW, TranslateMessage, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE,
-    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP, WS_VISIBLE,
+    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetClientRect, GetMessageW, PostMessageW,
+    PostQuitMessage, RegisterClassExW, TranslateMessage, WM_CLOSE, WM_DESTROY, WNDCLASSEXW,
+    WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
+    WS_VISIBLE,
 };
 use windows::core::PCWSTR;
 
@@ -44,10 +45,6 @@ pub fn create_fullscreen_window() -> anyhow::Result<HWND> {
         if RegisterClassExW(&wnd_class) == 0 {
             return Err(anyhow::anyhow!("Failed to register window class"));
         }
-
-        // Get primary monitor dimensions for fullscreen coverage.
-        let rect = RECT::default();
-        let _ = GetClientRect(HWND::default(), &rect);
 
         let hwnd = CreateWindowExW(
             WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
@@ -96,7 +93,7 @@ pub fn get_compositor_hwnd() -> Option<HWND> {
 /// messages are passed to `DefWindowProcW`. `WM_DESTROY` posts a quit message.
 extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match msg {
-        windows::Win32::UI::WindowsAndMessaging::WM_DESTROY => {
+        WM_DESTROY => {
             unsafe { PostQuitMessage(0) };
             LRESULT::default()
         }
@@ -122,12 +119,7 @@ pub fn run_message_loop() {
 pub fn request_close() {
     if let Some(hwnd) = get_compositor_hwnd() {
         unsafe {
-            let _ = windows::Win32::UI::WindowsAndMessaging::PostMessageW(
-                hwnd,
-                windows::Win32::UI::WindowsAndMessaging::WM_CLOSE,
-                WPARAM(0),
-                LPARAM(0),
-            );
+            let _ = PostMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0));
         }
     }
 }

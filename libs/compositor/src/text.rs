@@ -15,7 +15,7 @@ use windows::Win32::Graphics::Gdi::{
 };
 use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::WindowsAndMessaging::GetDC;
-use windows::core::{ComInterface, Interface, PCWSTR, implement, w};
+use windows::core::{ComInterface, PCWSTR, implement, w};
 
 /// A single glyph in the texture atlas.
 #[derive(Debug, Clone)]
@@ -231,10 +231,10 @@ impl Drop for TextRenderer {
     }
 }
 
-#[implement(ID2D1Factory)]
+/// D2D Factory wrapper (placeholder for future use)
 pub struct D2DFactoryWrapper {}
 
-#[implement(IDWriteTextRenderer)]
+/// DWrite Text Renderer wrapper (placeholder for future use)
 pub struct DWriteTextRendererWrapper {}
 
 #[cfg(test)]

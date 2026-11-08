@@ -230,7 +230,6 @@ fn evaluate_spring(t: f32, stiffness: f32, damping: f32) -> f32 {
     if z < 1.0 {
         // Underdamped: oscillating
         let wd = omega * (1.0 - z * z).sqrt();
-        let a = 1.0;
         let b = z / (1.0 - z * z).sqrt();
         1.0 - (-damping * t).exp() * (wd * t).cos() / (wd * b)
     } else {
@@ -253,7 +252,7 @@ mod tests {
 
     #[test]
     fn test_anim_prop_finished() {
-        let mut prop = AnimProp::new(0.0, 100.0, 100.0, Ease::Linear);
+        let prop = AnimProp::new(0.0, 100.0, 100.0, Ease::Linear);
         assert!(!prop.finished());
         // value starts at start
         assert!((prop.value() - 0.0).abs() < 1.0);

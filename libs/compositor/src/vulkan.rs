@@ -43,20 +43,18 @@ impl VulkanContext {
     pub unsafe fn new(hwnd: HWND, width: u32, height: u32) -> anyhow::Result<Self> {
         let entry = ash::Entry::linked();
 
-        // Instance with validation layers in debug.
-        let app_name =
-            windows::core::PCWSTR::from_raw("Seelen Compositor\0".encode_utf16().as_ptr());
-        let _ = app_name;
+        let app_name = std::ffi::CString::new("Seelen Compositor")?;
+        let engine_name = std::ffi::CString::new("Seelen")?;
 
-        let app_name_c = std::ffi::CString::new("Seelen Compositor")?;
-        let engine_name_c = std::ffi::CString::new("Seelen")?;
-
-        let app_info = ash::vk::ApplicationInfo::builder()
-            .application_name(app_name_c.as_c_str())
-            .application_version(ash::vk::make_api_version(0, 2, 8, 11))
-            .engine_name(engine_name_c.as_c_str())
-            .engine_version(ash::vk::make_api_version(0, 2, 8, 11))
-            .api_version(ash::vk::API_VERSION_1_3);
+        let app_info = ash::vk::ApplicationInfo {
+            s_type: ash::vk::StructureType::APPLICATION_INFO,
+            p_application_name: app_name.as_ptr(),
+            application_version: ash::vk::make_api_version(0, 2, 8, 11),
+            p_engine_name: engine_name.as_ptr(),
+            engine_version: ash::vk::make_api_version(0, 2, 8, 11),
+            api_version: ash::vk::API_VERSION_1_3,
+            ..Default::default()
+        };
 
         let mut extension_names = vec![
             ash::extensions::khr::Surface::name().as_ptr(),
@@ -71,26 +69,34 @@ impl VulkanContext {
             layer_names.push(ash::extensions::ext::DebugUtils::name().as_ptr());
         }
 
-        let create_info = ash::vk::InstanceCreateInfo::builder()
-            .application_info(&app_info)
-            .enabled_extension_names(&extension_names)
-            .enabled_layer_names(&layer_names);
+        let create_info = ash::vk::InstanceCreateInfo {
+            s_type: ash::vk::StructureType::INSTANCE_CREATE_INFO,
+            p_application_info: &app_info,
+            enabled_extension_count: extension_names.len() as u32,
+            pp_enabled_extension_names: extension_names.as_ptr(),
+            enabled_layer_count: layer_names.len() as u32,
+            pp_enabled_layer_names: if layer_names.is_empty() {
+                std::ptr::null()
+            } else {
+                layer_names.as_ptr()
+            },
+            ..Default::default()
+        };
 
         let instance = entry.create_instance(&create_info, None)?;
 
         // Debug messenger (debug only).
         let debug_messenger = if cfg!(debug_assertions) {
-            let debug_create_info = ash::vk::DebugUtilsMessengerCreateInfoEXT::builder()
-                .message_severity(
-                    ash::vk::DebugUtilsMessageSeverityFlagsEXT::ERROR
-                        | ash::vk::DebugUtilsMessageSeverityFlagsEXT::WARNING,
-                )
-                .message_type(
-                    ash::vk::DebugUtilsMessageTypeFlagsEXT::GENERAL
-                        | ash::vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION
-                        | ash::vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE,
-                )
-                .pfn_user_callback(Some(vulkan_debug_callback));
+            let debug_create_info = ash::vk::DebugUtilsMessengerCreateInfoEXT {
+                s_type: ash::vk::StructureType::DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+                message_severity: ash::vk::DebugUtilsMessageSeverityFlagsEXT::ERROR
+                    | ash::vk::DebugUtilsMessageSeverityFlagsEXT::WARNING,
+                message_type: ash::vk::DebugUtilsMessageTypeFlagsEXT::GENERAL
+                    | ash::vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION
+                    | ash::vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE,
+                pfn_user_callback: Some(vulkan_debug_callback),
+                ..Default::default()
+            };
             Some(instance.create_debug_utils_messenger_ext(&debug_create_info, None)?)
         } else {
             None
@@ -98,9 +104,13 @@ impl VulkanContext {
 
         // Surface (Win32).
         let surface_loader = ash::extensions::ext::DebugUtils::new(&entry, &instance);
-        let win32_surface_create_info = ash::vk::Win32SurfaceCreateInfoKHR::builder()
-            .hinstance(unsafe { windows::Win32::System::LibraryLoader::GetModuleHandleW(None)? })
-            .hwnd(hwnd);
+        let hinstance = windows::Win32::System::LibraryLoader::GetModuleHandleW(None)?;
+        let win32_surface_create_info = ash::vk::Win32SurfaceCreateInfoKHR {
+            s_type: ash::vk::StructureType::WIN32_SURFACE_CREATE_INFO_KHR,
+            hinstance: hinstance.0,
+            hwnd: hwnd.0,
+            ..Default::default()
+        };
         let surface_loader_khr = ash::extensions::khr::Surface::new(&entry, &instance);
         let surface =
             surface_loader_khr.create_win32_surface_khr(&win32_surface_create_info, None)?;
@@ -157,16 +167,25 @@ impl VulkanContext {
             .ok_or_else(|| anyhow::anyhow!("No queue family supports graphics + present"))?;
 
         // Logical device.
-        let queue_create_infos = [ash::vk::DeviceQueueCreateInfo::builder()
-            .queue_family_index(queue_family_index)
-            .queue_priorities(&[1.0])
-            .build()];
+        let queue_priority = [1.0f32];
+        let queue_create_infos = [ash::vk::DeviceQueueCreateInfo {
+            s_type: ash::vk::StructureType::DEVICE_QUEUE_CREATE_INFO,
+            queue_family_index,
+            queue_count: 1,
+            p_queue_priorities: queue_priority.as_ptr(),
+            ..Default::default()
+        }];
 
         let device_extensions = [ash::extensions::khr::Swapchain::name().as_ptr()];
 
-        let device_create_info = ash::vk::DeviceCreateInfo::builder()
-            .queue_create_infos(&queue_create_infos)
-            .enabled_extension_names(&device_extensions);
+        let device_create_info = ash::vk::DeviceCreateInfo {
+            s_type: ash::vk::StructureType::DEVICE_CREATE_INFO,
+            queue_create_info_count: queue_create_infos.len() as u32,
+            p_queue_create_infos: queue_create_infos.as_ptr(),
+            enabled_extension_count: device_extensions.len() as u32,
+            pp_enabled_extension_names: device_extensions.as_ptr(),
+            ..Default::default()
+        };
 
         let device = instance.create_device(physical_device, &device_create_info, None)?;
         let queue = device.get_device_queue(queue_family_index, 0);
@@ -189,10 +208,7 @@ impl VulkanContext {
 
         let swapchain_format = surface_format.format;
         let swapchain_extent = if caps.current_extent.width == u32::MAX {
-            ash::vk::Extent2D::builder()
-                .width(width)
-                .height(height)
-                .build()
+            ash::vk::Extent2D { width, height }
         } else {
             caps.current_extent
         };
@@ -221,22 +237,24 @@ impl VulkanContext {
             .find(|&m| m == ash::vk::PresentModeKHR::FIFO)
             .unwrap_or(ash::vk::PresentModeKHR::FIFO);
 
-        let swapchain_create_info = ash::vk::SwapchainCreateInfoKHR::builder()
-            .surface(surface)
-            .min_image_count(image_count)
-            .image_format(swapchain_format)
-            .image_color_space(surface_format.color_space)
-            .image_extent(swapchain_extent)
-            .image_array_layers(1)
-            .image_usage(
-                ash::vk::ImageUsageFlags::COLOR_ATTACHMENT | ash::vk::ImageUsageFlags::TRANSFER_DST,
-            )
-            .image_sharing_mode(ash::vk::SharingMode::EXCLUSIVE)
-            .pre_transform(pre_transform)
-            .composite_alpha(composite_alpha)
-            .present_mode(present_mode)
-            .clipped(true)
-            .old_swapchain(ash::vk::SwapchainKHR::null());
+        let swapchain_create_info = ash::vk::SwapchainCreateInfoKHR {
+            s_type: ash::vk::StructureType::SWAPCHAIN_CREATE_INFO_KHR,
+            surface,
+            min_image_count: image_count,
+            image_format: swapchain_format,
+            image_color_space: surface_format.color_space,
+            image_extent: swapchain_extent,
+            image_array_layers: 1,
+            image_usage: ash::vk::ImageUsageFlags::COLOR_ATTACHMENT
+                | ash::vk::ImageUsageFlags::TRANSFER_DST,
+            image_sharing_mode: ash::vk::SharingMode::EXCLUSIVE,
+            pre_transform,
+            composite_alpha,
+            present_mode,
+            clipped: ash::vk::TRUE,
+            old_swapchain: ash::vk::SwapchainKHR::null(),
+            ..Default::default()
+        };
 
         let swapchain = swapchain_loader.create_swapchain_khr(&swapchain_create_info, None)?;
         let swapchain_images = swapchain_loader.get_swapchain_images_khr(swapchain)?;
@@ -245,52 +263,64 @@ impl VulkanContext {
         let swapchain_image_views: Vec<ash::vk::ImageView> = swapchain_images
             .iter()
             .map(|&img| {
-                let create_info = ash::vk::ImageViewCreateInfo::builder()
-                    .image(img)
-                    .view_type(ash::vk::ImageViewType::TYPE_2D)
-                    .format(swapchain_format)
-                    .components(ash::vk::ComponentMapping {
+                let create_info = ash::vk::ImageViewCreateInfo {
+                    s_type: ash::vk::StructureType::IMAGE_VIEW_CREATE_INFO,
+                    image: img,
+                    view_type: ash::vk::ImageViewType::TYPE_2D,
+                    format: swapchain_format,
+                    components: ash::vk::ComponentMapping {
                         r: ash::vk::ComponentSwizzle::IDENTITY,
                         g: ash::vk::ComponentSwizzle::IDENTITY,
                         b: ash::vk::ComponentSwizzle::IDENTITY,
                         a: ash::vk::ComponentSwizzle::IDENTITY,
-                    })
-                    .subresource_range(ash::vk::ImageSubresourceRange {
+                    },
+                    subresource_range: ash::vk::ImageSubresourceRange {
                         aspect_mask: ash::vk::ImageAspectFlags::COLOR,
                         base_mip_level: 0,
                         level_count: 1,
                         base_array_layer: 0,
                         layer_count: 1,
-                    });
-                unsafe { device.create_image_view(&create_info, None) }.unwrap()
+                    },
+                    ..Default::default()
+                };
+                device.create_image_view(&create_info, None).unwrap()
             })
             .collect();
 
         // Render pass.
-        let attachment_descs = [ash::vk::AttachmentDescription::builder()
-            .format(swapchain_format)
-            .samples(ash::vk::SampleCountFlags::TYPE_1)
-            .load_op(ash::vk::AttachmentLoadOp::CLEAR)
-            .store_op(ash::vk::AttachmentStoreOp::STORE)
-            .stencil_load_op(ash::vk::AttachmentLoadOp::DONT_CARE)
-            .stencil_store_op(ash::vk::AttachmentStoreOp::DONT_CARE)
-            .initial_layout(ash::vk::ImageLayout::UNDEFINED)
-            .final_layout(ash::vk::ImageLayout::PRESENT_SRC_KHR)
-            .build()];
+        let attachment_descs = [ash::vk::AttachmentDescription {
+            format: swapchain_format,
+            samples: ash::vk::SampleCountFlags::TYPE_1,
+            load_op: ash::vk::AttachmentLoadOp::CLEAR,
+            store_op: ash::vk::AttachmentStoreOp::STORE,
+            stencil_load_op: ash::vk::AttachmentLoadOp::DONT_CARE,
+            stencil_store_op: ash::vk::AttachmentStoreOp::DONT_CARE,
+            initial_layout: ash::vk::ImageLayout::UNDEFINED,
+            final_layout: ash::vk::ImageLayout::PRESENT_SRC_KHR,
+            ..Default::default()
+        }];
 
-        let color_attachment_refs = [ash::vk::AttachmentReference::builder()
-            .attachment(0)
-            .layout(ash::vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
-            .build()];
+        let color_attachment_refs = [ash::vk::AttachmentReference {
+            attachment: 0,
+            layout: ash::vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+            ..Default::default()
+        }];
 
-        let subpasses = [ash::vk::SubpassDescription::builder()
-            .pipeline_bind_point(ash::vk::PipelineBindPoint::GRAPHICS)
-            .color_attachments(&color_attachment_refs)
-            .build()];
+        let subpasses = [ash::vk::SubpassDescription {
+            pipeline_bind_point: ash::vk::PipelineBindPoint::GRAPHICS,
+            color_attachment_count: 1,
+            p_color_attachments: color_attachment_refs.as_ptr(),
+            ..Default::default()
+        }];
 
-        let render_pass_create_info = ash::vk::RenderPassCreateInfo::builder()
-            .attachments(&attachment_descs)
-            .subpasses(&subpasses);
+        let render_pass_create_info = ash::vk::RenderPassCreateInfo {
+            s_type: ash::vk::StructureType::RENDER_PASS_CREATE_INFO,
+            attachment_count: attachment_descs.len() as u32,
+            p_attachments: attachment_descs.as_ptr(),
+            subpass_count: subpasses.len() as u32,
+            p_subpasses: subpasses.as_ptr(),
+            ..Default::default()
+        };
 
         let render_pass = device.create_render_pass(&render_pass_create_info, None)?;
 
@@ -299,42 +329,61 @@ impl VulkanContext {
             .iter()
             .map(|&iv| {
                 let attachments = [iv];
-                let create_info = ash::vk::FramebufferCreateInfo::builder()
-                    .render_pass(render_pass)
-                    .attachments(&attachments)
-                    .width(swapchain_extent.width)
-                    .height(swapchain_extent.height)
-                    .layers(1);
-                unsafe { device.create_framebuffer(&create_info, None) }.unwrap()
+                let create_info = ash::vk::FramebufferCreateInfo {
+                    s_type: ash::vk::StructureType::FRAMEBUFFER_CREATE_INFO,
+                    render_pass,
+                    attachment_count: attachments.len() as u32,
+                    p_attachments: attachments.as_ptr(),
+                    width: swapchain_extent.width,
+                    height: swapchain_extent.height,
+                    layers: 1,
+                    ..Default::default()
+                };
+                device.create_framebuffer(&create_info, None).unwrap()
             })
             .collect();
 
         // Command pool.
-        let command_pool_create_info = ash::vk::CommandPoolCreateInfo::builder()
-            .queue_family_index(queue_family_index)
-            .flags(ash::vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER);
+        let command_pool_create_info = ash::vk::CommandPoolCreateInfo {
+            s_type: ash::vk::StructureType::COMMAND_POOL_CREATE_INFO,
+            queue_family_index,
+            flags: ash::vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
+            ..Default::default()
+        };
 
         let command_pool = device.create_command_pool(&command_pool_create_info, None)?;
 
         // Command buffers.
-        let cmd_buf_alloc_info = ash::vk::CommandBufferAllocateInfo::builder()
-            .command_pool(command_pool)
-            .level(ash::vk::CommandBufferLevel::PRIMARY)
-            .command_buffer_count(swapchain_images.len() as u32);
+        let cmd_buf_alloc_info = ash::vk::CommandBufferAllocateInfo {
+            s_type: ash::vk::StructureType::COMMAND_BUFFER_ALLOCATE_INFO,
+            command_pool,
+            level: ash::vk::CommandBufferLevel::PRIMARY,
+            command_buffer_count: swapchain_images.len() as u32,
+            ..Default::default()
+        };
 
         let command_buffers = device.allocate_command_buffers(&cmd_buf_alloc_info)?;
 
         // Sync primitives.
-        let semaphore_create_info = ash::vk::SemaphoreCreateInfo::builder();
-        let fence_create_info =
-            ash::vk::FenceCreateInfo::builder().flags(ash::vk::FenceCreateFlags::SIGNALED);
+        let semaphore_create_info = ash::vk::SemaphoreCreateInfo {
+            s_type: ash::vk::StructureType::SEMAPHORE_CREATE_INFO,
+            ..Default::default()
+        };
+        let fence_create_info = ash::vk::FenceCreateInfo {
+            s_type: ash::vk::StructureType::FENCE_CREATE_INFO,
+            flags: ash::vk::FenceCreateFlags::SIGNALED,
+            ..Default::default()
+        };
 
         let image_available_semaphore = device.create_semaphore(&semaphore_create_info, None)?;
         let render_finished_semaphore = device.create_semaphore(&semaphore_create_info, None)?;
         let in_flight_fence = device.create_fence(&fence_create_info, None)?;
 
-        let pipeline_cache = device
-            .create_pipeline_cache(&ash::vk::PipelineCacheCreateInfo::builder().build(), None)?;
+        let pipeline_cache_create_info = ash::vk::PipelineCacheCreateInfo {
+            s_type: ash::vk::StructureType::PIPELINE_CACHE_CREATE_INFO,
+            ..Default::default()
+        };
+        let pipeline_cache = device.create_pipeline_cache(&pipeline_cache_create_info, None)?;
 
         Ok(Self {
             entry,
@@ -415,8 +464,11 @@ impl VulkanContext {
         self.device
             .reset_command_buffer(command_buffer, ash::vk::CommandBufferResetFlags::empty())?;
 
-        let begin_info = ash::vk::CommandBufferBeginInfo::builder()
-            .flags(ash::vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+        let begin_info = ash::vk::CommandBufferBeginInfo {
+            s_type: ash::vk::StructureType::COMMAND_BUFFER_BEGIN_INFO,
+            flags: ash::vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
+            ..Default::default()
+        };
 
         self.device
             .begin_command_buffer(command_buffer, &begin_info)?;
@@ -424,14 +476,18 @@ impl VulkanContext {
         // Begin render pass.
         let clear_values = [ash::vk::ClearValue { color: clear_color }];
 
-        let render_pass_begin_info = ash::vk::RenderPassBeginInfo::builder()
-            .render_pass(self.render_pass)
-            .framebuffer(self.framebuffers[image_index as usize])
-            .render_area(ash::vk::Rect2D {
+        let render_pass_begin_info = ash::vk::RenderPassBeginInfo {
+            s_type: ash::vk::StructureType::RENDER_PASS_BEGIN_INFO,
+            render_pass: self.render_pass,
+            framebuffer: self.framebuffers[image_index as usize],
+            render_area: ash::vk::Rect2D {
                 offset: ash::vk::Offset2D { x: 0, y: 0 },
                 extent: self.swapchain_extent,
-            })
-            .clear_values(&clear_values);
+            },
+            clear_value_count: clear_values.len() as u32,
+            p_clear_values: clear_values.as_ptr(),
+            ..Default::default()
+        };
 
         self.device.cmd_begin_render_pass(
             command_buffer,
@@ -451,23 +507,33 @@ impl VulkanContext {
         let wait_stages = [ash::vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
         let signal_semaphores = [self.render_finished_semaphore];
 
-        let submit_info = [ash::vk::SubmitInfo::builder()
-            .wait_semaphores(&wait_semaphores)
-            .wait_dst_stage_mask(&wait_stages)
-            .command_buffers(&[command_buffer])
-            .signal_semaphores(&signal_semaphores)
-            .build()];
+        let submit_info = ash::vk::SubmitInfo {
+            s_type: ash::vk::StructureType::SUBMIT_INFO,
+            wait_semaphore_count: wait_semaphores.len() as u32,
+            p_wait_semaphores: wait_semaphores.as_ptr(),
+            p_wait_dst_stage_mask: wait_stages.as_ptr(),
+            command_buffer_count: 1,
+            p_command_buffers: &command_buffer,
+            signal_semaphore_count: signal_semaphores.len() as u32,
+            p_signal_semaphores: signal_semaphores.as_ptr(),
+            ..Default::default()
+        };
 
         self.device
-            .queue_submit(self.queue, &submit_info, self.in_flight_fence)?;
+            .queue_submit(self.queue, &[submit_info], self.in_flight_fence)?;
 
         // Present.
         let swapchains = [self.swapchain];
         let image_indices = [image_index];
-        let present_info = ash::vk::PresentInfoKHR::builder()
-            .wait_semaphores(&signal_semaphores)
-            .swapchains(&swapchains)
-            .image_indices(&image_indices);
+        let present_info = ash::vk::PresentInfoKHR {
+            s_type: ash::vk::StructureType::PRESENT_INFO_KHR,
+            wait_semaphore_count: signal_semaphores.len() as u32,
+            p_wait_semaphores: signal_semaphores.as_ptr(),
+            swapchain_count: swapchains.len() as u32,
+            p_swapchains: swapchains.as_ptr(),
+            p_image_indices: image_indices.as_ptr(),
+            ..Default::default()
+        };
 
         self.swapchain_loader.queue_present_khr(&present_info)?;
 
@@ -478,13 +544,13 @@ impl VulkanContext {
 
     /// Recreate the swapchain (e.g. after window resize).
     pub unsafe fn recreate_swapchain(&mut self, width: u32, height: u32) -> anyhow::Result<()> {
-        self.device.wait_idle()?;
+        self.device.device_wait_idle()?;
 
         // Destroy old swapchain resources.
-        for fb in self.framebuffers.iter() {
+        for fb in &self.framebuffers {
             self.device.destroy_framebuffer(*fb, None);
         }
-        for iv in self.swapchain_image_views.iter() {
+        for iv in &self.swapchain_image_views {
             self.device.destroy_image_view(*iv, None);
         }
         self.swapchain_loader
@@ -492,10 +558,7 @@ impl VulkanContext {
 
         self.width = width;
         self.height = height;
-        self.swapchain_extent = ash::vk::Extent2D::builder()
-            .width(width)
-            .height(height)
-            .build();
+        self.swapchain_extent = ash::vk::Extent2D { width, height };
 
         // Recreate swapchain (same params as initial creation).
         // Simplified: in a full implementation we'd re-query surface caps.
@@ -510,22 +573,24 @@ impl VulkanContext {
             .find(|f| f.format == ash::vk::Format::B8G8R8A8_UNORM)
             .unwrap_or(&formats[0]);
 
-        let swapchain_create_info = ash::vk::SwapchainCreateInfoKHR::builder()
-            .surface(self.surface)
-            .min_image_count(caps.min_image_count.max(2))
-            .image_format(surface_format.format)
-            .image_color_space(surface_format.color_space)
-            .image_extent(self.swapchain_extent)
-            .image_array_layers(1)
-            .image_usage(
-                ash::vk::ImageUsageFlags::COLOR_ATTACHMENT | ash::vk::ImageUsageFlags::TRANSFER_DST,
-            )
-            .image_sharing_mode(ash::vk::SharingMode::EXCLUSIVE)
-            .pre_transform(caps.current_transform)
-            .composite_alpha(ash::vk::CompositeAlphaFlagsKHR::OPAQUE)
-            .present_mode(ash::vk::PresentModeKHR::FIFO)
-            .clipped(true)
-            .old_swapchain(ash::vk::SwapchainKHR::null());
+        let swapchain_create_info = ash::vk::SwapchainCreateInfoKHR {
+            s_type: ash::vk::StructureType::SWAPCHAIN_CREATE_INFO_KHR,
+            surface: self.surface,
+            min_image_count: caps.min_image_count.max(2),
+            image_format: surface_format.format,
+            image_color_space: surface_format.color_space,
+            image_extent: self.swapchain_extent,
+            image_array_layers: 1,
+            image_usage: ash::vk::ImageUsageFlags::COLOR_ATTACHMENT
+                | ash::vk::ImageUsageFlags::TRANSFER_DST,
+            image_sharing_mode: ash::vk::SharingMode::EXCLUSIVE,
+            pre_transform: caps.current_transform,
+            composite_alpha: ash::vk::CompositeAlphaFlagsKHR::OPAQUE,
+            present_mode: ash::vk::PresentModeKHR::FIFO,
+            clipped: ash::vk::TRUE,
+            old_swapchain: ash::vk::SwapchainKHR::null(),
+            ..Default::default()
+        };
 
         self.swapchain = self
             .swapchain_loader
@@ -537,24 +602,27 @@ impl VulkanContext {
             .swapchain_images
             .iter()
             .map(|&img| {
-                let create_info = ash::vk::ImageViewCreateInfo::builder()
-                    .image(img)
-                    .view_type(ash::vk::ImageViewType::TYPE_2D)
-                    .format(surface_format.format)
-                    .components(ash::vk::ComponentMapping {
+                let create_info = ash::vk::ImageViewCreateInfo {
+                    s_type: ash::vk::StructureType::IMAGE_VIEW_CREATE_INFO,
+                    image: img,
+                    view_type: ash::vk::ImageViewType::TYPE_2D,
+                    format: surface_format.format,
+                    components: ash::vk::ComponentMapping {
                         r: ash::vk::ComponentSwizzle::IDENTITY,
                         g: ash::vk::ComponentSwizzle::IDENTITY,
                         b: ash::vk::ComponentSwizzle::IDENTITY,
                         a: ash::vk::ComponentSwizzle::IDENTITY,
-                    })
-                    .subresource_range(ash::vk::ImageSubresourceRange {
+                    },
+                    subresource_range: ash::vk::ImageSubresourceRange {
                         aspect_mask: ash::vk::ImageAspectFlags::COLOR,
                         base_mip_level: 0,
                         level_count: 1,
                         base_array_layer: 0,
                         layer_count: 1,
-                    });
-                unsafe { self.device.create_image_view(&create_info, None) }.unwrap()
+                    },
+                    ..Default::default()
+                };
+                device.create_image_view(&create_info, None).unwrap()
             })
             .collect();
 
@@ -563,22 +631,28 @@ impl VulkanContext {
             .iter()
             .map(|&iv| {
                 let attachments = [iv];
-                let create_info = ash::vk::FramebufferCreateInfo::builder()
-                    .render_pass(self.render_pass)
-                    .attachments(&attachments)
-                    .width(self.swapchain_extent.width)
-                    .height(self.swapchain_extent.height)
-                    .layers(1);
-                unsafe { self.device.create_framebuffer(&create_info, None) }.unwrap()
+                let create_info = ash::vk::FramebufferCreateInfo {
+                    s_type: ash::vk::StructureType::FRAMEBUFFER_CREATE_INFO,
+                    render_pass: self.render_pass,
+                    attachment_count: attachments.len() as u32,
+                    p_attachments: attachments.as_ptr(),
+                    width: self.swapchain_extent.width,
+                    height: self.swapchain_extent.height,
+                    layers: 1,
+                    ..Default::default()
+                };
+                device.create_framebuffer(&create_info, None).unwrap()
             })
             .collect();
 
-        self.command_buffers = self.device.allocate_command_buffers(
-            &ash::vk::CommandBufferAllocateInfo::builder()
-                .command_pool(self.command_pool)
-                .level(ash::vk::CommandBufferLevel::PRIMARY)
-                .command_buffer_count(self.swapchain_images.len() as u32),
-        )?;
+        self.command_buffers =
+            device.allocate_command_buffers(&ash::vk::CommandBufferAllocateInfo {
+                s_type: ash::vk::StructureType::COMMAND_BUFFER_ALLOCATE_INFO,
+                command_pool: self.command_pool,
+                level: ash::vk::CommandBufferLevel::PRIMARY,
+                command_buffer_count: self.swapchain_images.len() as u32,
+                ..Default::default()
+            })?;
 
         self.mark_dirty();
         Ok(())
@@ -588,11 +662,11 @@ impl VulkanContext {
 impl Drop for VulkanContext {
     fn drop(&mut self) {
         unsafe {
-            self.device.wait_idle().ok();
-            for fb in self.framebuffers.iter() {
+            self.device.device_wait_idle().ok();
+            for fb in &self.framebuffers {
                 self.device.destroy_framebuffer(*fb, None);
             }
-            for iv in self.swapchain_image_views.iter() {
+            for iv in &self.swapchain_image_views {
                 self.device.destroy_image_view(*iv, None);
             }
             self.swapchain_loader
@@ -658,6 +732,8 @@ mod tests {
         let clear = ash::vk::ClearColorValue {
             float32: [0.0, 0.0, 0.0, 1.0],
         };
-        assert_eq!(clear.float32[3], 1.0);
+        unsafe {
+            assert_eq!(clear.float32[3], 1.0);
+        }
     }
 }
